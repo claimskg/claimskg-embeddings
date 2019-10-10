@@ -256,7 +256,7 @@ if __name__ == '__main__':
 
     # try:
     opts, args = getopt.getopt(
-        sys.args, "", ("generate-dataframe=", "input-features=", "dataframe=",
+        sys.argv, "", ("generate-dataframe=", "input-features=", "dataframe=",
                        "--true-false", "--true-false-mixed",
                        "--text-input-features", "--error-file"))
     for opt, arg in opts:
