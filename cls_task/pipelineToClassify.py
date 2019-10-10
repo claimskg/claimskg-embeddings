@@ -35,7 +35,6 @@ logging.basicConfig(filename='app.log',
                     filemode='a',
                     format='%(name)s - %(levelname)s - %(message)s')
 #logging.config.fileConfig("log_config.ini", disable_existing_loggers=False)
-print(":#/ promezio - TEST LOGS")
 logging.debug('Log @debug level')
 logging.warning("Log @info level")
 logging.warning('Log @warning level')
@@ -255,35 +254,35 @@ if __name__ == '__main__':
 
     text_input_features = False
 
-    try:
-        opts, args = getopt.getopt(
-            sys.args, "",
-            ("generate-dataframe=", "input-features=", "dataframe=",
-             "--true-false", "--true-false-mixed", "--text-input-features"))
-        for opt, arg in opts:
-            if opt == '--generate-dataframe':
-                precreated_file_ready = False
-                output_dataframe_path = str(arg)
-            if opt == '--input-features':
-                if precreated_file_ready:
-                    logging.error(
-                        "--input-features required for --generate-dataframe")
-                    exit(1)
-                input_path = str(arg)
-            if opt == '--text-input-features':
-                text_input_features = True
-            if opt == '--dataframe':
-                input_dataframe_path = str(arg)
-            if opt == '--true-false':
-                true_vs_false = True
-                true_and_false_vs_mix = False
-            if opt == '--true-false-mixed':
-                true_vs_false = False
-                true_and_false_vs_mix = True
+    # try:
+    opts, args = getopt.getopt(
+        sys.args, "", ("generate-dataframe=", "input-features=", "dataframe=",
+                       "--true-false", "--true-false-mixed",
+                       "--text-input-features", "--error-file"))
+    for opt, arg in opts:
+        if opt == '--generate-dataframe':
+            precreated_file_ready = False
+            output_dataframe_path = str(arg)
+        if opt == '--input-features':
+            if precreated_file_ready:
+                logging.error(
+                    "--input-features required for --generate-dataframe")
+                exit(1)
+            input_path = str(arg)
+        if opt == '--text-input-features':
+            text_input_features = True
+        if opt == '--dataframe':
+            input_dataframe_path = str(arg)
+        if opt == '--true-false':
+            true_vs_false = True
+            true_and_false_vs_mix = False
+        if opt == '--true-false-mixed':
+            true_vs_false = False
+            true_and_false_vs_mix = True
 
-    except:
-        print('Arguments parser error, try -h')
-        exit()
+    # except:
+    #     print('Arguments parser error, try -h')
+    #     exit()
 
     # Reading the Data and Performing Basic Data Checks
     # tsv_read = pd.read_csv(file_path + file_name, sep='\t')
