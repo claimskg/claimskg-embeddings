@@ -1,71 +1,71 @@
-import json
+import getopt
 import logging
 import logging.config
-import time
-import urllib
-from random import randint
-
-import getopt
 import sys
 
-import numpy as np
 import pandas as pd
-import rdflib
-from rdflib import Graph
-from rdflib.namespace import FOAF, RDF
-from sklearn.datasets import load_iris
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.linear_model import LogisticRegression, SGDClassifier
-from sklearn.metrics import (accuracy_score, classification_report,
-                             precision_score, recall_score)
-from sklearn.model_selection import (GridSearchCV, KFold, cross_val_score,
-                                     cross_validate, train_test_split)
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import Normalizer
-from sklearn.svm import SVC, LinearSVC
-from sklearn.tree import DecisionTreeClassifier
 # from utils import get_class_labels
 from SPARQLWrapper import JSON, SPARQLWrapper
+from redis import Redis
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression, SGDClassifier
+from sklearn.metrics import (accuracy_score, precision_score, recall_score)
+from sklearn.model_selection import (GridSearchCV, KFold, cross_validate)
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC, LinearSVC
+from sklearn.tree import DecisionTreeClassifier
+from tqdm import tqdm
 
-sparql_kg = SPARQLWrapper("https://data.gesis.org/claimskg/sparql")
+sparql_kg = SPARQLWrapper("http://localhost:8890/sparql")
 sparq_dbpedia = SPARQLWrapper("http://dbpedia.org/sparql")
 logging.basicConfig(filename='app.log',
                     filemode='a',
                     format='%(name)s - %(levelname)s - %(message)s')
-#logging.config.fileConfig("log_config.ini", disable_existing_loggers=False)
+# logging.config.fileConfig("log_config.ini", disable_existing_loggers=False)
 logging.debug('Log @debug level')
 logging.warning("Log @info level")
 logging.warning('Log @warning level')
 logging.error('Log @error level')
 logging.critical('Log @critical level')
 
+redis = Redis()
+
 
 def get_class(claimID):
-    str_query = """PREFIX schema: <http://schema.org/>
-						   PREFIX dbr: <http://dbpedia.org/resource/>
-						   SELECT ?ratingValue WHERE {
-
-						   ?claimReview schema:itemReviewed """ + claimID + """ .
-						   ?claimReview schema:reviewRating ?rating .
-						   ?rating schema:author <http://data.gesis.org/claimskg/organization/claimskg> ;
-								schema:ratingValue ?ratingValue .
-						   } """
-    # print(str_query)
-    try:
+    result = None
+    if redis:
+        result = redis.get(claimID)
+        if result is not None:
+            return result
+    if not redis or result is None:
+        str_query = """
+            PREFIX schema: <http://schema.org/>
+            PREFIX nif: <http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#>
+        
+                SELECT ?text ?ratingName WHERE {
+        
+                <""" + claimID + """> schema:text ?text .
+        
+                ?claimReview schema:itemReviewed <""" + claimID + """> ; schema:reviewRating ?rating .
+                ?rating schema:author <http://data.gesis.org/claimskg/organization/claimskg> ; schema:alternateName ?ratingName }
+            """
+        # print(str_query)
+        # try:
         sparql_kg.setQuery(str_query)  # 1 false, 3 true
         sparql_kg.setReturnFormat(JSON)
         results = sparql_kg.query().convert()
-        rating_ = str(-1)
+        rating = str(-1)
         for result in results["results"]["bindings"]:
             # check if ?o is a blank node (if yes, then iterate on it -- add on queue )
-            rating_ = str(int(result["ratingValue"]['value']))
+            rating = str(result["ratingName"]['value'])
 
-    except:
-        print("Exception -- Skipped claim ID" + str(claimID))
-        return "-1"
-    return rating_
+        if redis and rating is not None:
+            redis.set(claimID, rating)
+        # except:
+        #     print("Exception -- Skipped claim ID" + str(claimID))
+        # return "-1"
+        return rating
 
 
 def specify_models():
@@ -188,7 +188,7 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
                             param_grid,
                             scoring=metric,
                             cv=k,
-                            refit='acc')
+                            refit='acc', n_jobs=8)
     grid_obj = grid_obj.fit(X, y)
     best_parameters = grid_obj.best_params_
     print(best_parameters)
@@ -198,7 +198,7 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
         logging.warning('BEST SCORE')
         logging.warning(best_score)
         logging.warning("CV results ")
-        #aa = grid_obj.cv_results_
+        # aa = grid_obj.cv_results_
         logging.warning("MEAN TEST ACC")
         logging.warning(grid_obj.cv_results_['mean_test_acc'])
         logging.warning("MEAN TEST PREC")
@@ -248,17 +248,18 @@ if __name__ == '__main__':
     input_path = None
     output_dataframe_path = None
     input_dataframe_path = None
+    exclusion_file_path = None
 
     true_vs_false = True
     true_and_false_vs_mix = False
 
     text_input_features = False
+    exclusion_list = []
 
     # try:
-    opts, args = getopt.getopt(
-        sys.argv, "", ("generate-dataframe=", "input-features=", "dataframe=",
-                       "--true-false", "--true-false-mixed",
-                       "--text-input-features", "--error-file"))
+    opts, args = getopt.getopt(sys.argv[1:], "", ["generate-dataframe=", "input-features=", "dataframe=",
+                                                  "true-false-mixed",
+                                                  "text-input-features", "error-file"])
     for opt, arg in opts:
         if opt == '--generate-dataframe':
             precreated_file_ready = False
@@ -269,13 +270,14 @@ if __name__ == '__main__':
                     "--input-features required for --generate-dataframe")
                 exit(1)
             input_path = str(arg)
+        if opt == '--exclusion-file':
+            exclusion_file_path = str(arg)
+            exclusion_file = open(exclusion_file_path, "r", encoding="utf8")
+            exclusion_list = exclusion_file.readlines()
         if opt == '--text-input-features':
             text_input_features = True
         if opt == '--dataframe':
             input_dataframe_path = str(arg)
-        if opt == '--true-false':
-            true_vs_false = True
-            true_and_false_vs_mix = False
         if opt == '--true-false-mixed':
             true_vs_false = False
             true_and_false_vs_mix = True
@@ -287,11 +289,22 @@ if __name__ == '__main__':
     # Reading the Data and Performing Basic Data Checks
     # tsv_read = pd.read_csv(file_path + file_name, sep='\t')
     if not precreated_file_ready:
-        f = open(input_path, 'r', encoding='cp1252')
+        if text_input_features:
+            sep = ","
+        else:
+            sep = "\t"
+        f = open(input_path, 'r', encoding='utf8')
+        lines = f.readlines()
+        parts = lines[0].split(sep)
 
-        #create a list of col names
+        if text_input_features:
+            dims = len(parts) - 1
+        else:
+            dims = len(parts) - 1
+
+        # create a list of col names
         cnames = ['nodeID']
-        for i in range(0, 200):
+        for i in range(0, dims-1):
             cnames.append("feature" + str(i))
         cnames.append('target')
 
@@ -300,30 +313,34 @@ if __name__ == '__main__':
         list_of_lists = []
         i_count = 0
 
-        line = f.readline()
-        while line:
+        for line in tqdm(lines):
             # print(line.translate(table), end="")
-            app = line.strip().split("\t")
-            if not app[0].startswith(
-                    "<http://data.gesis.org/claimskg/creative_work/"):
-                line = f.readline()
+            parts = line.strip().split(sep)
+            if parts[0].startswith("<"):
+                parts[0] = parts[0][1:-1]
+            if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
                 continue
-            for i in range(1, 200):
-                app[i] = float(app[i])
-            app.append(get_class(app[0]))
-            list_of_lists.append(app)
-            # print(df.shape)
-            line = f.readline()
-            i_count += 1
-            if i_count % 1000 == 0:
-                print("read " + str(i_count))
+            parts[1:dims] = [float(part) for part in parts[1:dims]]
 
+            if not text_input_features:
+                line_class = get_class(parts[0])
+                parts.append(line_class)
+            else:
+                line_class = parts[-1]
+
+            if true_and_false_vs_mix and (
+                    line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
+                0] not in exclusion_list):
+                list_of_lists.append(parts)
+            elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
+                list_of_lists.append(parts)
         df = df.append(pd.DataFrame(list_of_lists, columns=df.columns))
+        df.to_csv(output_dataframe_path, sep=',')
     else:
-        #read file already preprare with feat and target
+        # read file already preprared with feat and target
         df = pd.read_csv(input_dataframe_path, sep='\t', encoding='utf-8')
 
-    #drop claim where claim ID not recognized
+    # drop claim where claim ID not recognized
     df = df[df.target != -1]
     if true_vs_false:
         df = df[df.target != 2]
