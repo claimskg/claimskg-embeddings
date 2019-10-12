@@ -4,6 +4,7 @@ import random
 import sys
 import traceback
 
+import flair
 from SPARQLWrapper import SPARQLWrapper
 from flair.data import Corpus
 # python cls_embed_claim_from_text.py ../../../data/entities.list ../../../data/claimskg.dataset.csv ../../../data/data_embeddings_utils/text_embeddings_claims
@@ -144,4 +145,4 @@ if __name__ == "__main__":
         classifier = TextClassifier(document_embeddings, label_dictionary=corpus.make_label_dictionary(),
                                     multi_label=False)
         trainer = ModelTrainer(classifier, corpus)
-        trainer.train('./', max_epochs=10)
+        trainer.train('./', max_epochs=10, embeddings_storage_mode='gpu')
