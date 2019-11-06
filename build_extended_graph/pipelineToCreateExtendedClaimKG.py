@@ -1,5 +1,5 @@
-from CBDBuilder import *
-from utils_claimKG import *
+from build_extended_graph.CBDBuilder import *
+from build_extended_graph.utils_claimKG import *
 from SPARQLWrapper import SPARQLWrapper, JSON
 
 sparql_kg = SPARQLWrapper("https://data.gesis.org/claimskg/sparql")
