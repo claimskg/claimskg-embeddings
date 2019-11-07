@@ -4,13 +4,11 @@ import random
 import sys
 import traceback
 
-import flair
 from SPARQLWrapper import SPARQLWrapper
 from flair.data import Corpus
 # python cls_embed_claim_from_text.py ../../../data/entities.list ../../../data/claimskg.dataset.csv ../../../data/data_embeddings_utils/text_embeddings_claims
 from flair.datasets import ClassificationCorpus
-from flair.embeddings import WordEmbeddings, RoBERTaEmbeddings, XLNetEmbeddings, OpenAIGPT2Embeddings, \
-    DocumentLSTMEmbeddings, DocumentRNNEmbeddings
+from flair.embeddings import DocumentRNNEmbeddings, OpenAIGPT2Embeddings, RoBERTaEmbeddings
 from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
 
@@ -48,7 +46,7 @@ PREFIX nif: <http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#>
             rating_ = result["ratingName"]['value']
             text_ = str(result["text"]['value']).strip()
             if len(text_) > 0 and rating_ in labels:
-                claims.append((text_.replace("\n", " ").replace("\t", ""), rating_))
+                claims.append((text_.replace("\n", " ").replace("\t", "")[:511], rating_))
     except:
         print("Exception")
         print(traceback.format_exc())
@@ -127,22 +125,31 @@ def write_fasttext_corpus(file, claims):
 if __name__ == "__main__":
 
     args = sys.argv[1:]
+    compute = 'gpu'
 
     if args[0] == 'generate':
         generate_dataset(args[1], args[2].split(","))
     else:
         corpus_path = args[0]
+        if len(args) > 1:
+            compute = args[1]
         corpus: Corpus = ClassificationCorpus(corpus_path,
                                               test_file='test.txt',
                                               dev_file='dev.txt',
-                                              train_file='train.txt')
+                                              train_file='train.txt', in_memory=True)
 
-        word_embeddings = [WordEmbeddings('en'), RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
+        # word_embeddings = [OpenAIGPT2Embeddings()]  # , RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
+        word_embeddings = [OpenAIGPT2Embeddings()]
 
         document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=512, reproject_words=True,
-                                                     reproject_words_dimension=256)
+                                                    reproject_words_dimension=512, bidirectional=True, rnn_layers=1,
+                                                    rnn_type='GRU')
 
         classifier = TextClassifier(document_embeddings, label_dictionary=corpus.make_label_dictionary(),
                                     multi_label=False)
         trainer = ModelTrainer(classifier, corpus)
-        trainer.train('./', max_epochs=10, embeddings_storage_mode='gpu')
+        trainer.train('./', max_epochs=20, embeddings_storage_mode=compute,
+                      learning_rate=0.1,
+                      mini_batch_size=32,
+                      anneal_factor=0.5,
+                      patience=5, save_final_model=True)

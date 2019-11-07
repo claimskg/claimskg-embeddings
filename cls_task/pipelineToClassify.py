@@ -15,13 +15,14 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score)
 from sklearn.model_selection import (GridSearchCV, KFold, cross_validate)
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC, LinearSVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.neural_network import MLPClassifier
-from tqdm import tqdm
+from sklearn.utils import resample
+
+from cls_task import scoring_functions
 
 sparql_kg = SPARQLWrapper("http://localhost:8890/sparql")
-sparql_kg = SPARQLWrapper("https://data.gesis.org/claimskg/sparql")
 sparq_dbpedia = SPARQLWrapper("http://dbpedia.org/sparql")
 logging.basicConfig(filename='app.log',
                     filemode='a',
@@ -29,11 +30,21 @@ logging.basicConfig(filename='app.log',
 # logging.config.fileConfig("log_config.ini", disable_existing_loggers=False)
 ##logging.debug('Log @debug level')
 ##logging.info("Log @info level")
-#logging.warning('Log @warning level')
-#logging.error('Log @error level')
-#logging.critical('Log @critical level')
+# logging.warning('Log @warning level')
+# logging.error('Log @error level')
+# logging.critical('Log @critical level')
 logging.warning("New run")
 redis = None#Redis()
+
+ratings_dict = dict()
+with open("ratings.tsv", "r") as ratings:
+    for line in ratings.readlines():
+        parts = line.split("\t")
+        ratings_dict[parts[0]] = parts[1]
+
+
+def get_class_offline(claimID):
+    return ratings_dict[claimID]
 
 
 def get_class(claimID):
@@ -165,7 +176,6 @@ def subgraph2vec_tokenizer(s):
     return [line.split(' ')[0] for line in s.split('\n')]
 
 
-
 def make_cls(model_dict, X, y, metric='f1', k=5):
     '''
 		model_dict : We will pass in the dictionaries from the list you just created one by one to this parameter
@@ -205,19 +215,19 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     logging.warning(best_parameters)
 
     best_score = grid_obj.best_score_
-        # best_score= clf.fit(X,y).best_score_
+    # best_score= clf.fit(X,y).best_score_
     best_model = grid_obj
 
     cls_app = model_dict['class']
     cls_app.set_params(**best_parameters)
-    #scoring = ['precision_macro', 'recall_macro', 'accuracy']
+    # scoring = ['precision_macro', 'recall_macro', 'accuracy']
 
     scoring = scoring_functions.overall_scoring()
     results_kfold = cross_validate(cls_app, X, y, scoring=scoring, cv=k, return_train_score=False)
 
     str_out = ""
     acc_list = list(results_kfold['test_accuracy'])
-    str_out +=  str(sum(acc_list) / len(acc_list)) + "\t"
+    str_out += str(sum(acc_list) / len(acc_list)) + "\t"
 
     f1_list = list(results_kfold['test_f1'])
     str_out += str(sum(f1_list) / len(f1_list)) + "\t"
@@ -260,11 +270,11 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     #logging.warning("RESULT K FOLD")
     #logging.warning(results_kfold)
 
-    #logging.warning("\nobtained from ")
-    #logging.warning("F1 on each fold " + str(f1_list))
-    #logging.warning("precision on each fold " + str(prec_list))
-    #logging.warning("recall on each fold " + str(rec_list))
-    #logging.warning("accuracy on each fold " + str(acc_list))
+    # logging.warning("\nobtained from ")
+    # logging.warning("F1 on each fold " + str(f1_list))
+    # logging.warning("precision on each fold " + str(prec_list))
+    # logging.warning("recall on each fold " + str(rec_list))
+    # logging.warning("accuracy on each fold " + str(acc_list))
     logging.warning("\n")
     logging.warning("\n")
 
@@ -283,24 +293,8 @@ def my_scorer_funct(estimator, x, y):
     return a, p, r
 
 
-def retrive_ratings(rating_path):
-    rating_dict = dict()
-    f_in = open(rating_path, 'r', encoding='utf8')
-    for cnt, line in enumerate(f_in):
-        parts = line.strip().split("\t")
-        rating_dict[parts[0]] = parts[1]
-    f_in.close()
-
-    rating_dict = dict()
-    df1 = pd.read_csv("C:\\fact_checking\\dataframe_CBD_with_static_filters_11_07_model_6.csv", sep='\t', encoding='utf-8')
-    for index, row in df1.iterrows():
-        rating_dict[row['nodeID'][1:-1]] = row['target']
-    return rating_dict
-
-
 if __name__ == '__main__':
     precreated_file_ready = True
-    rating_path = None
     input_path = None
     output_dataframe_path = None
     input_dataframe_path = None
@@ -318,16 +312,15 @@ if __name__ == '__main__':
     # try:
     opts, args = getopt.getopt(sys.argv[1:], "", ["generate-dataframe=", "input-features=", "dataframe=",
                                                   "true-false-mixed","sampling-strategy=", "rating-path=",
+                                                  "true-false-mixed", "sampling-strategy=",
                                                   "text-input-features", "error-file"])
-    #--generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear_creative_works_only.tsv"
-#--dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
+    # --generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear.tsv"
+    # --dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
 
     for opt, arg in opts:
         if opt == '--generate-dataframe':
             precreated_file_ready = False
             output_dataframe_path = str(arg)
-        if opt == '--rating-path':
-            rating_path = str(arg)
         if opt == '--input-features':
             if precreated_file_ready:
                 logging.error(
@@ -343,7 +336,6 @@ if __name__ == '__main__':
         if opt == '--dataframe':
             input_dataframe_path = str(arg)
         if opt == '--true-false-mixed':
-            print("QUI")
             true_vs_false = False
             true_and_false_vs_mix = True
         if opt == '--sampling-strategy':
@@ -359,9 +351,6 @@ if __name__ == '__main__':
     # Reading the Data and Performing Basic Data Checks
     # tsv_read = pd.read_csv(file_path + file_name, sep='\t')
     if not precreated_file_ready:
-        rating_dict = None
-        if rating_path != None:
-            rating_dict = retrive_ratings(rating_path)
         if text_input_features:
             sep = ","
         else:
@@ -381,7 +370,7 @@ if __name__ == '__main__':
         print("B")
         # create a list of col names
         cnames = ['nodeID']
-        for i in range(0, dims):
+        for i in range(0, dims - 1):
             cnames.append("feature" + str(i))
         cnames.append('target')
 
@@ -394,7 +383,6 @@ if __name__ == '__main__':
         f = open(input_path, 'r', encoding='utf8')
 
         line = f.readline()
-        contline = 0
         while line:
         #for line in tqdm(lines):
             # print(line.translate(table), end="")
@@ -410,16 +398,7 @@ if __name__ == '__main__':
             parts[1:dims] = [float(part) for part in parts[1:dims]]
 
             if not text_input_features:
-                if rating_dict != None:
-                    if parts[0] not in rating_dict:
-                        print(parts[0])
-                        line = f.readline()
-                        i_count += 1
-                        continue
-                    else:
-                        line_class = rating_dict[parts[0]]
-                else:
-                    line_class = get_class(parts[0])
+                line_class = get_class(parts[0])
                 parts.append(line_class)
             else:
                 line_class = parts[-1]
@@ -441,7 +420,7 @@ if __name__ == '__main__':
             if i_count % 1000 == 0:
                 print("read " + str(i_count))
 
-        print("create df from lists....")
+
         df = df.append(pd.DataFrame(list_of_lists, columns=df.columns))
         print("writing dataframe on file....")
         df.to_csv(output_dataframe_path, sep='\t')
@@ -525,7 +504,7 @@ if __name__ == '__main__':
         'rec_macro': 'recall_macro',
     }'''
     my_scores = scoring_functions.overall_scoring()
-    #my_scores = {'accuracy': 'accuracy','prec_macro': 'precision_macro','rec_macro': 'recall_macro'}
+    # my_scores = {'accuracy': 'accuracy','prec_macro': 'precision_macro','rec_macro': 'recall_macro'}
 
     kfold = KFold(n_splits=10, random_state=100)
     for model_dict in model_list:
