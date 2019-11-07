@@ -398,22 +398,22 @@ if __name__ == '__main__':
             parts[1:dims] = [float(part) for part in parts[1:dims]]
 
             if not text_input_features:
-                line_class = get_class(parts[0])
+                line_class = get_class_offline(parts[0])
                 parts.append(line_class)
             else:
                 line_class = parts[-1]
 
-            '''if true_and_false_vs_mix and (
+            if true_and_false_vs_mix and (
                     line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list):
                 list_of_lists.append(parts)
             elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
-                list_of_lists.append(parts)'''
-            if true_and_false_vs_mix and (
+                list_of_lists.append(parts)
+            '''if true_and_false_vs_mix and (
                     line_class == 2 or line_class == 3 or line_class == 1 and parts[
                 0] not in exclusion_list):
                 list_of_lists.append(parts)
             elif line_class == 3 or line_class == 1 and parts[0] not in exclusion_list:
-                list_of_lists.append(parts)
+                list_of_lists.append(parts)'''
 
             line = f.readline()
             i_count += 1
@@ -430,9 +430,9 @@ if __name__ == '__main__':
 
     print("It is time to balance the dataset")
     # drop claim where claim ID not recognized
-    df = df[df.target != -1]
+    df = df[df.target != 'OTHER'] #-1
     if true_vs_false:
-        df = df[df.target != 2]
+        df = df[df.target != 'MIXTURE']#-2
     if true_and_false_vs_mix:
         df.loc[df['target'] == 3, 'target'] = 1
     data = df
