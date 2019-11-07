@@ -139,7 +139,7 @@ if __name__ == "__main__":
                                               train_file='train.txt', in_memory=True)
 
         # word_embeddings = [OpenAIGPT2Embeddings()]  # , RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
-        word_embeddings = [RoBERTaEmbeddings()]
+        word_embeddings = [OpenAIGPT2Embeddings()]
 
         document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=512, reproject_words=True,
                                                     reproject_words_dimension=512, bidirectional=True, rnn_layers=1,
