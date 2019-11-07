@@ -21,6 +21,7 @@ from sklearn.neural_network import MLPClassifier
 from tqdm import tqdm
 
 sparql_kg = SPARQLWrapper("http://localhost:8890/sparql")
+sparql_kg = SPARQLWrapper("https://data.gesis.org/claimskg/sparql")
 sparq_dbpedia = SPARQLWrapper("http://dbpedia.org/sparql")
 logging.basicConfig(filename='app.log',
                     filemode='a',
@@ -32,7 +33,7 @@ logging.basicConfig(filename='app.log',
 #logging.error('Log @error level')
 #logging.critical('Log @critical level')
 logging.warning("New run")
-redis = Redis()
+redis = None#Redis()
 
 
 def get_class(claimID):
@@ -193,7 +194,7 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     name = model_dict['name']
     param_grid = model_dict['parameters']
     logging.warning('MODEL ' + str(name))
-    logging.warning('param_grid ' + str(param_grid))
+    #logging.warning('param_grid ' + str(param_grid))
     grid_obj = GridSearchCV(model_dict['class'],
                             param_grid,
                             scoring=metric,
@@ -201,7 +202,7 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
                             refit='accuracy', n_jobs=8)
     grid_obj = grid_obj.fit(X, y)
     best_parameters = grid_obj.best_params_
-    print(best_parameters)
+    logging.warning(best_parameters)
 
     best_score = grid_obj.best_score_
         # best_score= clf.fit(X,y).best_score_
@@ -256,8 +257,8 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     '''for i in range(0, k):
         f1 = 2 * (rec_list[i] * prec_list[i]) / (rec_list[i] + prec_list[i])
         f1_list.append(f1)'''
-    logging.warning("RESULT K FOLD")
-    logging.warning(results_kfold)
+    #logging.warning("RESULT K FOLD")
+    #logging.warning(results_kfold)
 
     #logging.warning("\nobtained from ")
     #logging.warning("F1 on each fold " + str(f1_list))
@@ -282,8 +283,24 @@ def my_scorer_funct(estimator, x, y):
     return a, p, r
 
 
+def retrive_ratings(rating_path):
+    rating_dict = dict()
+    f_in = open(rating_path, 'r', encoding='utf8')
+    for cnt, line in enumerate(f_in):
+        parts = line.strip().split("\t")
+        rating_dict[parts[0]] = parts[1]
+    f_in.close()
+
+    rating_dict = dict()
+    df1 = pd.read_csv("C:\\fact_checking\\dataframe_CBD_with_static_filters_11_07_model_6.csv", sep='\t', encoding='utf-8')
+    for index, row in df1.iterrows():
+        rating_dict[row['nodeID'][1:-1]] = row['target']
+    return rating_dict
+
+
 if __name__ == '__main__':
     precreated_file_ready = True
+    rating_path = None
     input_path = None
     output_dataframe_path = None
     input_dataframe_path = None
@@ -300,15 +317,17 @@ if __name__ == '__main__':
 
     # try:
     opts, args = getopt.getopt(sys.argv[1:], "", ["generate-dataframe=", "input-features=", "dataframe=",
-                                                  "true-false-mixed","sampling-strategy=",
+                                                  "true-false-mixed","sampling-strategy=", "rating-path=",
                                                   "text-input-features", "error-file"])
-    #--generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear.tsv"
+    #--generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear_creative_works_only.tsv"
 #--dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
 
     for opt, arg in opts:
         if opt == '--generate-dataframe':
             precreated_file_ready = False
             output_dataframe_path = str(arg)
+        if opt == '--rating-path':
+            rating_path = str(arg)
         if opt == '--input-features':
             if precreated_file_ready:
                 logging.error(
@@ -324,6 +343,7 @@ if __name__ == '__main__':
         if opt == '--dataframe':
             input_dataframe_path = str(arg)
         if opt == '--true-false-mixed':
+            print("QUI")
             true_vs_false = False
             true_and_false_vs_mix = True
         if opt == '--sampling-strategy':
@@ -331,7 +351,7 @@ if __name__ == '__main__':
             if strategy == "upsample":
                 upsampleStrategy = True
             if strategy == "downsample":
-                downsampleStrategy = False
+                downsampleStrategy = True
     # except:
     #     print('Arguments parser error, try -h')
     #     exit()
@@ -339,6 +359,9 @@ if __name__ == '__main__':
     # Reading the Data and Performing Basic Data Checks
     # tsv_read = pd.read_csv(file_path + file_name, sep='\t')
     if not precreated_file_ready:
+        rating_dict = None
+        if rating_path != None:
+            rating_dict = retrive_ratings(rating_path)
         if text_input_features:
             sep = ","
         else:
@@ -358,7 +381,7 @@ if __name__ == '__main__':
         print("B")
         # create a list of col names
         cnames = ['nodeID']
-        for i in range(0, dims - 1):
+        for i in range(0, dims):
             cnames.append("feature" + str(i))
         cnames.append('target')
 
@@ -371,6 +394,7 @@ if __name__ == '__main__':
         f = open(input_path, 'r', encoding='utf8')
 
         line = f.readline()
+        contline = 0
         while line:
         #for line in tqdm(lines):
             # print(line.translate(table), end="")
@@ -381,19 +405,35 @@ if __name__ == '__main__':
                 other_count += 1
                 if other_count % 1000000 == 0:
                     print("****read " + str(other_count))
+                line = f.readline()
                 continue
             parts[1:dims] = [float(part) for part in parts[1:dims]]
 
             if not text_input_features:
-                line_class = get_class(parts[0])
+                if rating_dict != None:
+                    if parts[0] not in rating_dict:
+                        print(parts[0])
+                        line = f.readline()
+                        i_count += 1
+                        continue
+                    else:
+                        line_class = rating_dict[parts[0]]
+                else:
+                    line_class = get_class(parts[0])
                 parts.append(line_class)
             else:
                 line_class = parts[-1]
 
-            if true_and_false_vs_mix and (
+            '''if true_and_false_vs_mix and (
                     line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list):
                 list_of_lists.append(parts)
             elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
+                list_of_lists.append(parts)'''
+            if true_and_false_vs_mix and (
+                    line_class == 2 or line_class == 3 or line_class == 1 and parts[
+                0] not in exclusion_list):
+                list_of_lists.append(parts)
+            elif line_class == 3 or line_class == 1 and parts[0] not in exclusion_list:
                 list_of_lists.append(parts)
 
             line = f.readline()
@@ -401,8 +441,10 @@ if __name__ == '__main__':
             if i_count % 1000 == 0:
                 print("read " + str(i_count))
 
+        print("create df from lists....")
         df = df.append(pd.DataFrame(list_of_lists, columns=df.columns))
-        df.to_csv(output_dataframe_path, sep=',')
+        print("writing dataframe on file....")
+        df.to_csv(output_dataframe_path, sep='\t')
     else:
         # read file already preprared with feat and target
         df = pd.read_csv(input_dataframe_path, sep='\t', encoding='utf-8')
@@ -419,8 +461,12 @@ if __name__ == '__main__':
                                                          axis=1).values
 
     # separate minority and majority classes
-    false_cls = data[data.target == 1]
-    true_cls = data[data.target == 2]
+    if true_vs_false:
+        false_cls = data[data.target == 1]
+        true_cls = data[data.target == 3]
+    if true_and_false_vs_mix:
+        false_cls = data[data.target == 1]
+        true_cls = data[data.target == 2]
 
     if false_cls.shape[0] > true_cls.shape[0]:
         minority = true_cls
@@ -465,6 +511,7 @@ if __name__ == '__main__':
     x_feature_vectors = data.drop('target', axis=1).drop('nodeID', axis=1).values
     print(x_feature_vectors.shape)
     y_class_vector = data['target'].values
+    y_class_vector = y_class_vector.astype('int')
     print(y_class_vector.shape)
     print(data['target'].value_counts())
 
