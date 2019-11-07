@@ -1,14 +1,15 @@
 import csv
+import os
 # from utils import get_class_labels
-import random
 import sys
 import traceback
+from os import mkdir
 
 from SPARQLWrapper import SPARQLWrapper
 from flair.data import Corpus
 # python cls_embed_claim_from_text.py ../../../data/entities.list ../../../data/claimskg.dataset.csv ../../../data/data_embeddings_utils/text_embeddings_claims
 from flair.datasets import ClassificationCorpus
-from flair.embeddings import DocumentRNNEmbeddings, OpenAIGPT2Embeddings, RoBERTaEmbeddings
+from flair.embeddings import DocumentRNNEmbeddings, RoBERTaEmbeddings
 from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
 
@@ -39,14 +40,14 @@ PREFIX nif: <http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#>
     # print(str_query)
 
     try:
-        claims = []
+        claims = dict()
         for result in results:
             # check if ?o is a blank node (if yes, then iterate on it -- add on queue )
             id = result["claim"]["value"]
             rating_ = result["ratingName"]['value']
             text_ = str(result["text"]['value']).strip()
             if len(text_) > 0 and rating_ in labels:
-                claims.append((text_.replace("\n", " ").replace("\t", "")[:511], rating_))
+                claims[id] = (text_.replace("\n", " ").replace("\t", "")[:511], rating_)
     except:
         print("Exception")
         print(traceback.format_exc())
@@ -61,21 +62,33 @@ def generate_dataset(file_path, labels):
     print("generating data set: ", file_path)
 
     claims = get_all_claims(labels)
-    random.shuffle(claims)
 
-    train_end = int(0.7 * len(claims))
-    test_start = train_end + 1
-    test_end = int(test_start + 0.2 * len(claims))
-    dev_start = test_end + 1
+    mkdir(file_path + "/deep")
 
-    with open(file_path + "/train.txt", mode='w') as f:
-        write_fasttext_corpus(f, claims[:train_end])
+    for i in range(1, 10):
+        fold_path = file_path + "/deep/fold" + str(i)
+        mkdir(fold_path)
+        with open(file_path + "/fold_test_" + str(i), "r") as test_fold:
+            lines = test_fold.readlines()
+            claims_list = []
+            for line in lines:
+                claims_list.append(claims[line.strip()])
+            with open(fold_path + "/test.txt", mode="w") as f:
+                write_fasttext_corpus(f, claims_list)
 
-    with open(file_path + "/test.txt", mode='w') as f:
-        write_fasttext_corpus(f, claims[test_start:test_end])
+        with open(file_path + "/fold_train_" + str(i), "r") as train_fold:
+            lines = train_fold.readlines()
+            claims_list = []
+            for line in lines:
+                claims_list.append(claims[line.strip()])
 
-    with open(file_path + "/dev.txt", mode='w') as f:
-        write_fasttext_corpus(f, claims[dev_start:])
+            train_end = int(0.9 * len(claims_list))
+
+            with open(fold_path + "/train.txt", mode="w") as f:
+                write_fasttext_corpus(f, claims_list[:train_end])
+
+            with open(fold_path + "/dev.txt", mode="w") as f:
+                write_fasttext_corpus(f, claims_list[train_end + 1:])
 
     print("data set generated")
 
@@ -133,23 +146,27 @@ if __name__ == "__main__":
         corpus_path = args[0]
         if len(args) > 1:
             compute = args[1]
-        corpus: Corpus = ClassificationCorpus(corpus_path,
-                                              test_file='test.txt',
-                                              dev_file='dev.txt',
-                                              train_file='train.txt', in_memory=True)
+        for root, dirs, files in os.walk(corpus_path):
+            for dir in dirs:
+                print("Processing " + dir+" ...")
+                corpus: Corpus = ClassificationCorpus(corpus_path + "/" + dir,
+                                                      test_file='test.txt',
+                                                      dev_file='dev.txt',
+                                                      train_file='train.txt', in_memory=True)
 
-        # word_embeddings = [OpenAIGPT2Embeddings()]  # , RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
-        word_embeddings = [OpenAIGPT2Embeddings()]
+                # word_embeddings = [OpenAIGPT2Embeddings()]  # , RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
+                word_embeddings = [RoBERTaEmbeddings()]
 
-        document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=512, reproject_words=True,
-                                                    reproject_words_dimension=512, bidirectional=True, rnn_layers=1,
-                                                    rnn_type='GRU')
+                document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=512, reproject_words=True,
+                                                            reproject_words_dimension=512, bidirectional=True,
+                                                            rnn_layers=1,
+                                                            rnn_type='GRU')
 
-        classifier = TextClassifier(document_embeddings, label_dictionary=corpus.make_label_dictionary(),
-                                    multi_label=False)
-        trainer = ModelTrainer(classifier, corpus)
-        trainer.train('./', max_epochs=20, embeddings_storage_mode=compute,
-                      learning_rate=0.1,
-                      mini_batch_size=32,
-                      anneal_factor=0.5,
-                      patience=5, save_final_model=True)
+                classifier = TextClassifier(document_embeddings, label_dictionary=corpus.make_label_dictionary(),
+                                            multi_label=False)
+                trainer = ModelTrainer(classifier, corpus)
+                trainer.train('./' + dir + "/model/", max_epochs=20, embeddings_storage_mode=compute,
+                              learning_rate=0.1,
+                              mini_batch_size=32,
+                              anneal_factor=0.5,
+                              patience=5, save_final_model=True)

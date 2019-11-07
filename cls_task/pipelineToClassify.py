@@ -174,7 +174,7 @@ def subgraph2vec_tokenizer(s):
     return [line.split(' ')[0] for line in s.split('\n')]
 
 
-def make_cls(model_dict, X, y, metric='f1', k=5):
+def make_cls(model_dict, X, y, splits, metric='f1'):
     '''
 		model_dict : We will pass in the dictionaries from the list you just created one by one to this parameter
 		X: The input data
@@ -206,7 +206,7 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     grid_obj = GridSearchCV(model_dict['class'],
                             param_grid,
                             scoring=metric,
-                            cv=k,
+                            cv=splits,
                             refit='accuracy', n_jobs=8)
     grid_obj = grid_obj.fit(X, y)
     best_parameters = grid_obj.best_params_
@@ -221,7 +221,7 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     # scoring = ['precision_macro', 'recall_macro', 'accuracy']
 
     scoring = scoring_functions.overall_scoring()
-    results_kfold = cross_validate(cls_app, X, y, scoring=scoring, cv=k, return_train_score=False)
+    results_kfold = cross_validate(cls_app, X, y, scoring=scoring, cv=splits, return_train_score=False)
 
     str_out = ""
     acc_list = list(results_kfold['test_accuracy'])
@@ -261,7 +261,7 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     logging.warning("+++++++++++++++++++++")
     logging.warning(str_out)
     logging.warning("+++++++++++++++++++++")
-    print("number of folds " + str(k))
+    print("number of folds " + str(len(splits)))
     '''for i in range(0, k):
         f1 = 2 * (rec_list[i] * prec_list[i]) / (rec_list[i] + prec_list[i])
         f1_list.append(f1)'''
@@ -492,13 +492,15 @@ if __name__ == '__main__':
     # my_scores = {'accuracy': 'accuracy','prec_macro': 'precision_macro','rec_macro': 'recall_macro'}
 
     kfold = KFold(n_splits=10, random_state=100)
+    splits = kfold.split(x_feature_vectors, y_class_vector)
+
     for model_dict in model_list:
         print("Cross Validation for " + str(model_dict['name']))
         print(
             make_cls(model_dict,
                      x_feature_vectors,
                      y_class_vector,
-                     my_scores,
-                     k=10))
+                     splits,
+                     my_scores))
 
     pass
