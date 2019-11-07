@@ -3,8 +3,6 @@ import logging
 import logging.config
 import sys
 
-from sklearn.utils import resample
-from cls_task import scoring_functions
 import pandas as pd
 # from utils import get_class_labels
 from SPARQLWrapper import JSON, SPARQLWrapper
@@ -15,10 +13,12 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score)
 from sklearn.model_selection import (GridSearchCV, KFold, cross_validate)
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC, LinearSVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.neural_network import MLPClassifier
-from tqdm import tqdm
+from sklearn.utils import resample
+
+from cls_task import scoring_functions
 
 sparql_kg = SPARQLWrapper("http://localhost:8890/sparql")
 sparq_dbpedia = SPARQLWrapper("http://dbpedia.org/sparql")
@@ -28,11 +28,21 @@ logging.basicConfig(filename='app.log',
 # logging.config.fileConfig("log_config.ini", disable_existing_loggers=False)
 ##logging.debug('Log @debug level')
 ##logging.info("Log @info level")
-#logging.warning('Log @warning level')
-#logging.error('Log @error level')
-#logging.critical('Log @critical level')
+# logging.warning('Log @warning level')
+# logging.error('Log @error level')
+# logging.critical('Log @critical level')
 logging.warning("New run")
 redis = Redis()
+
+ratings_dict = dict()
+with open("ratings.tsv", "r") as ratings:
+    for line in ratings.readlines():
+        parts = line.split("\t")
+        ratings_dict[parts[0]] = parts[1]
+
+
+def get_class_offline(claimID):
+    return ratings_dict[claimID]
 
 
 def get_class(claimID):
@@ -164,7 +174,6 @@ def subgraph2vec_tokenizer(s):
     return [line.split(' ')[0] for line in s.split('\n')]
 
 
-
 def make_cls(model_dict, X, y, metric='f1', k=5):
     '''
 		model_dict : We will pass in the dictionaries from the list you just created one by one to this parameter
@@ -204,19 +213,19 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     print(best_parameters)
 
     best_score = grid_obj.best_score_
-        # best_score= clf.fit(X,y).best_score_
+    # best_score= clf.fit(X,y).best_score_
     best_model = grid_obj
 
     cls_app = model_dict['class']
     cls_app.set_params(**best_parameters)
-    #scoring = ['precision_macro', 'recall_macro', 'accuracy']
+    # scoring = ['precision_macro', 'recall_macro', 'accuracy']
 
     scoring = scoring_functions.overall_scoring()
     results_kfold = cross_validate(cls_app, X, y, scoring=scoring, cv=k, return_train_score=False)
 
     str_out = ""
     acc_list = list(results_kfold['test_accuracy'])
-    str_out +=  str(sum(acc_list) / len(acc_list)) + "\t"
+    str_out += str(sum(acc_list) / len(acc_list)) + "\t"
 
     f1_list = list(results_kfold['test_f1'])
     str_out += str(sum(f1_list) / len(f1_list)) + "\t"
@@ -259,11 +268,11 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     logging.warning("RESULT K FOLD")
     logging.warning(results_kfold)
 
-    #logging.warning("\nobtained from ")
-    #logging.warning("F1 on each fold " + str(f1_list))
-    #logging.warning("precision on each fold " + str(prec_list))
-    #logging.warning("recall on each fold " + str(rec_list))
-    #logging.warning("accuracy on each fold " + str(acc_list))
+    # logging.warning("\nobtained from ")
+    # logging.warning("F1 on each fold " + str(f1_list))
+    # logging.warning("precision on each fold " + str(prec_list))
+    # logging.warning("recall on each fold " + str(rec_list))
+    # logging.warning("accuracy on each fold " + str(acc_list))
     logging.warning("\n")
     logging.warning("\n")
 
@@ -300,10 +309,10 @@ if __name__ == '__main__':
 
     # try:
     opts, args = getopt.getopt(sys.argv[1:], "", ["generate-dataframe=", "input-features=", "dataframe=",
-                                                  "true-false-mixed","sampling-strategy=",
+                                                  "true-false-mixed", "sampling-strategy=",
                                                   "text-input-features", "error-file"])
-    #--generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear.tsv"
-#--dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
+    # --generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear.tsv"
+    # --dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
 
     for opt, arg in opts:
         if opt == '--generate-dataframe':
@@ -347,8 +356,8 @@ if __name__ == '__main__':
 
         line = f.readline()
         parts = line.split(sep)
-        #lines = f.readline()
-        #parts = lines[0].split(sep)
+        # lines = f.readline()
+        # parts = lines[0].split(sep)
         print("C")
         if text_input_features:
             dims = len(parts) - 1
@@ -372,7 +381,7 @@ if __name__ == '__main__':
 
         line = f.readline()
         while line:
-        #for line in tqdm(lines):
+            # for line in tqdm(lines):
             # print(line.translate(table), end="")
             parts = line.strip().split(sep)
             if parts[0].startswith("<"):
@@ -391,7 +400,8 @@ if __name__ == '__main__':
                 line_class = parts[-1]
 
             if true_and_false_vs_mix and (
-                    line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list):
+                    line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
+                0] not in exclusion_list):
                 list_of_lists.append(parts)
             elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
                 list_of_lists.append(parts)
@@ -478,7 +488,7 @@ if __name__ == '__main__':
         'rec_macro': 'recall_macro',
     }'''
     my_scores = scoring_functions.overall_scoring()
-    #my_scores = {'accuracy': 'accuracy','prec_macro': 'precision_macro','rec_macro': 'recall_macro'}
+    # my_scores = {'accuracy': 'accuracy','prec_macro': 'precision_macro','rec_macro': 'recall_macro'}
 
     kfold = KFold(n_splits=10, random_state=100)
     for model_dict in model_list:

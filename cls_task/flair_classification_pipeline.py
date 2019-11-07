@@ -8,7 +8,7 @@ from SPARQLWrapper import SPARQLWrapper
 from flair.data import Corpus
 # python cls_embed_claim_from_text.py ../../../data/entities.list ../../../data/claimskg.dataset.csv ../../../data/data_embeddings_utils/text_embeddings_claims
 from flair.datasets import ClassificationCorpus
-from flair.embeddings import WordEmbeddings, DocumentRNNEmbeddings, RoBERTaEmbeddings
+from flair.embeddings import DocumentRNNEmbeddings, OpenAIGPT2Embeddings, RoBERTaEmbeddings
 from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
 
@@ -138,8 +138,8 @@ if __name__ == "__main__":
                                               dev_file='dev.txt',
                                               train_file='train.txt', in_memory=True)
 
-        word_embeddings = [WordEmbeddings('en')]  # , RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
-        #word_embeddings = [RoBERTaEmbeddings()]
+        # word_embeddings = [OpenAIGPT2Embeddings()]  # , RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
+        word_embeddings = [RoBERTaEmbeddings()]
 
         document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=512, reproject_words=True,
                                                     reproject_words_dimension=512, bidirectional=True, rnn_layers=1,
