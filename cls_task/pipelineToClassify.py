@@ -394,7 +394,7 @@ if __name__ == '__main__':
             parts[1:dims] = [float(part) for part in parts[1:dims]]
 
             if not text_input_features:
-                line_class = get_class(parts[0])
+                line_class = get_class_offline(parts[0])
                 parts.append(line_class)
             else:
                 line_class = parts[-1]
@@ -410,6 +410,7 @@ if __name__ == '__main__':
             i_count += 1
             if i_count % 1000 == 0:
                 print("read " + str(i_count))
+
 
         df = df.append(pd.DataFrame(list_of_lists, columns=df.columns))
         df.to_csv(output_dataframe_path, sep=',')
