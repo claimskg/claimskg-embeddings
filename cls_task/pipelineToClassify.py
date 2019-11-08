@@ -130,7 +130,7 @@ def subgraph2vec_tokenizer(s):
     return [line.split(' ')[0] for line in s.split('\n')]
 
 
-def make_cls(model_dict, X, y, splits, metric='f1'):
+def make_cls(model_dict, X, y, splits, jobs=1, metric='f1'):
     '''
 		model_dict : We will pass in the dictionaries from the list you just created one by one to this parameter
 		X: The input data
@@ -138,46 +138,31 @@ def make_cls(model_dict, X, y, splits, metric='f1'):
 		metric : The name of a metric to use for evluating performance during cross validation. Please give this parameter a default value of 'f1' which is the F measure.
 		k : The number of folds to use with cross validation, the default should be 5
 		'''
-    ''' # Choose the type of classifier.
-	clf = RandomForestClassifier()
-
-	# Choose some parameter combinations to try
-	parameters = {
-				  'max_depth': [2, 3],
-				  }
-	# Run the grid search
-	grid_obj = GridSearchCV(clf, parameters, scoring='accuracy',cv= k)
-	grid_obj = grid_obj.fit(X, y)
-
-	best_parameters = grid_obj.best_params_
-	print(best_parameters)
-	best_score = grid_obj.best_score_
-	print(best_score)
-'''
 
     name = model_dict['name']
     param_grid = model_dict['parameters']
-    logging.warning('MODEL ' + str(name))
-    grid_obj = GridSearchCV(model_dict['class'],
-                            param_grid,
-                            scoring=metric,
-                            cv=splits,
-                            refit='accuracy', n_jobs=8)
-    grid_obj = grid_obj.fit(X, y)
-    best_parameters = grid_obj.best_params_
-    logging.warning(best_parameters)
-
-    best_score = grid_obj.best_score_
-    # best_score= clf.fit(X,y).best_score_
-    best_model = grid_obj
-
     cls_app = model_dict['class']
-    cls_app.set_params(**best_parameters)
+    logging.warning('MODEL ' + str(name))
+    if len(param_grid) > 0:
+        grid_obj = GridSearchCV(model_dict['class'],
+                                param_grid,
+                                scoring=metric,
+                                cv=splits,
+                                refit='accuracy', n_jobs=jobs)
+        grid_obj = grid_obj.fit(X, y)
+        best_parameters = grid_obj.best_params_
+        logging.warning(best_parameters)
+
+        best_score = grid_obj.best_score_
+        # best_score= clf.fit(X,y).best_score_
+        best_model = grid_obj
+        cls_app.set_params(**best_parameters)
+
     # scoring = ['precision_macro', 'recall_macro', 'accuracy']
 
     # HERE ADD SOURCE CODE WITH NEW SCORING FUNCTION
     scoring = scoring_functions.overall_scoring()
-    results_kfold = cross_validate(cls_app, X, y, scoring=scoring, cv=splits, return_train_score=False)
+    results_kfold = cross_validate(cls_app, X, y, scoring=scoring, cv=splits, return_train_score=False, n_jobs=jobs)
 
     # HERE new str_out for logging
     str_out = str(name) + "\t"
@@ -212,6 +197,10 @@ def make_cls(model_dict, X, y, splits, metric='f1'):
     logging.warning(str_out)
     logging.warning("+++++++++++++++++++++")
 
+    if len(param_grid) == 0:
+        best_score = sum(acc_list) / len(acc_list)
+        best_model = name
+
     return (name, best_model, best_score)
 
 
@@ -245,26 +234,20 @@ if __name__ == '__main__':
 
     write_splits = False
 
+    jobs = 1
+
     strategy = "None"
 
     # try:
-    opts, args = getopt.getopt(sys.argv[1:], "", ["generate-dataframe=", "input-features=", "dataframe=",
+    opts, args = getopt.getopt(sys.argv[1:], "", ["input-features=",
                                                   "true-false-mixed", "sampling-strategy=", "rating-path=",
-                                                  "text-input-features", "error-file", "write-splits"])
+                                                  "text-input-features", "error-file", "write-splits", "jobs="])
     # --generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear.tsv"
     # --dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
 
     for opt, arg in opts:
-        if opt == '--generate-dataframe':
-            precreated_file_ready = False
-            output_dataframe_path = str(arg)
-            # HERE add log
-            logging.warning("--generate-dataframe\t" + output_dataframe_path)
+
         if opt == '--input-features':
-            if precreated_file_ready:
-                logging.error(
-                    "--input-features required for --generate-dataframe")
-                exit(1)
             input_path = str(arg)
             # HERE add log
             logging.warning("--input-features\t" + input_path)
@@ -277,11 +260,7 @@ if __name__ == '__main__':
         if opt == '--text-input-features':
             text_input_features = True
             # HERE add log
-            logging.warning("--text-input-features\t" + text_input_features)
-        if opt == '--dataframe':
-            input_dataframe_path = str(arg)
-            # HERE add log
-            logging.warning("--dataframe\t" + input_dataframe_path)
+            logging.warning("--text-input-features\t" + str(text_input_features))
         if opt == '--true-false-mixed':
             true_vs_false = False
             true_and_false_vs_mix = True
@@ -296,8 +275,10 @@ if __name__ == '__main__':
             if strategy == "downsample":
                 downsampleStrategy = True
                 logging.warning("--sampling-strategy\t" + strategy)
-        if opt == "write-splits":
+        if opt == "--write-splits":
             write_splits = True
+        if opt == "--jobs":
+            jobs = int(arg)
     # HERE add logs
     if true_vs_false:
         logging.warning("--cls problem\t true VS false")
@@ -436,14 +417,15 @@ if __name__ == '__main__':
     # HERE more fine grained scoring output
     my_scores = scoring_functions.overall_scoring()
 
-    splits = generate_splits(df, seed=100, write=True)
+    splits, kfold = generate_splits(data, seed=100, write=True)
 
     for model_dict in model_list:
         print("Cross Validation for " + str(model_dict['name']))
         print(make_cls(model_dict,
                        x_feature_vectors,
                        y_class_vector,
-                       splits,
-                       my_scores))
+                       kfold,
+                       jobs=jobs,
+                       metric=my_scores))
 
     pass
