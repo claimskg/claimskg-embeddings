@@ -28,19 +28,21 @@ logging.basicConfig(filename='app.log',
                     filemode='a',
                     format='%(name)s - %(levelname)s - %(message)s')
 # logging.config.fileConfig("log_config.ini", disable_existing_loggers=False)
-##logging.debug('Log @debug level')
-##logging.info("Log @info level")
-# logging.warning('Log @warning level')
-# logging.error('Log @error level')
-# logging.critical('Log @critical level')
-logging.warning("New run")
+#HERE
+logging.warning("----------New run-------------")
 redis = None#Redis()
 
 ratings_dict = dict()
 with open("ratings.tsv", "r") as ratings:
     for line in ratings.readlines():
-        parts = line.split("\t")
+        parts = line.strip().split("\t")
         ratings_dict[parts[0]] = parts[1]
+'''LeoExpClaims = set()
+with open("LeoExpClaims.txt", "r") as ratings:
+    for line in ratings.readlines():
+        line = line.strip()
+        LeoExpClaims.add(line)
+print(len(LeoExpClaims))'''
 
 
 def get_class_offline(claimID):
@@ -204,7 +206,6 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     name = model_dict['name']
     param_grid = model_dict['parameters']
     logging.warning('MODEL ' + str(name))
-    #logging.warning('param_grid ' + str(param_grid))
     grid_obj = GridSearchCV(model_dict['class'],
                             param_grid,
                             scoring=metric,
@@ -222,10 +223,12 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     cls_app.set_params(**best_parameters)
     # scoring = ['precision_macro', 'recall_macro', 'accuracy']
 
+    # HERE ADD SOURCE CODE WITH NEW SCORING FUNCTION
     scoring = scoring_functions.overall_scoring()
     results_kfold = cross_validate(cls_app, X, y, scoring=scoring, cv=k, return_train_score=False)
 
-    str_out = ""
+    # HERE new str_out for logging
+    str_out = str(name) +"\t"
     acc_list = list(results_kfold['test_accuracy'])
     str_out += str(sum(acc_list) / len(acc_list)) + "\t"
 
@@ -243,13 +246,6 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     rec_list = list(results_kfold['test_recall_macro'])
     str_out += str(sum(rec_list) / len(rec_list)) + "\t"
 
-    f1_list = list(results_kfold['test_f1_micro'])
-    str_out += str(sum(f1_list) / len(f1_list)) + "\t"
-    prec_list = list(results_kfold['test_precision_micro'])
-    str_out += str(sum(prec_list) / len(prec_list)) + "\t"
-    rec_list = list(results_kfold['test_recall_micro'])
-    str_out += str(sum(rec_list) / len(rec_list)) + "\t"
-
     tp_list = list(results_kfold['test_tp'])
     str_out += str(sum(tp_list) / len(tp_list)) + "\t"
     tn_list = list(results_kfold['test_tn'])
@@ -260,23 +256,10 @@ def make_cls(model_dict, X, y, metric='f1', k=5):
     fn_list = list(results_kfold['test_fn'])
     str_out += str(sum(fn_list) / len(fn_list)) + "\t"
 
-    logging.warning("+++++++++++++++++++++")
+    #logging.warning("+++++++++++++++++++++")
     logging.warning(str_out)
     logging.warning("+++++++++++++++++++++")
-    print("number of folds " + str(k))
-    '''for i in range(0, k):
-        f1 = 2 * (rec_list[i] * prec_list[i]) / (rec_list[i] + prec_list[i])
-        f1_list.append(f1)'''
-    #logging.warning("RESULT K FOLD")
-    #logging.warning(results_kfold)
-
-    # logging.warning("\nobtained from ")
-    # logging.warning("F1 on each fold " + str(f1_list))
-    # logging.warning("precision on each fold " + str(prec_list))
-    # logging.warning("recall on each fold " + str(rec_list))
-    # logging.warning("accuracy on each fold " + str(acc_list))
-    logging.warning("\n")
-    logging.warning("\n")
+    # HERE removal of other logging
 
     return (name, best_model, best_score)
 
@@ -312,7 +295,6 @@ if __name__ == '__main__':
     # try:
     opts, args = getopt.getopt(sys.argv[1:], "", ["generate-dataframe=", "input-features=", "dataframe=",
                                                   "true-false-mixed","sampling-strategy=", "rating-path=",
-                                                  "true-false-mixed", "sampling-strategy=",
                                                   "text-input-features", "error-file"])
     # --generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear.tsv"
     # --dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
@@ -321,29 +303,50 @@ if __name__ == '__main__':
         if opt == '--generate-dataframe':
             precreated_file_ready = False
             output_dataframe_path = str(arg)
+            # HERE add log
+            logging.warning("--generate-dataframe\t" + output_dataframe_path)
         if opt == '--input-features':
             if precreated_file_ready:
                 logging.error(
                     "--input-features required for --generate-dataframe")
                 exit(1)
             input_path = str(arg)
+            # HERE add log
+            logging.warning("--input-features\t" + input_path)
         if opt == '--exclusion-file':
             exclusion_file_path = str(arg)
             exclusion_file = open(exclusion_file_path, "r", encoding="utf8")
+            # HERE add log
+            logging.warning("--exclusion-file\t" + exclusion_file_path)
             exclusion_list = exclusion_file.readlines()
         if opt == '--text-input-features':
             text_input_features = True
+            # HERE add log
+            logging.warning("--text-input-features\t" + text_input_features)
         if opt == '--dataframe':
             input_dataframe_path = str(arg)
+            # HERE add log
+            logging.warning("--dataframe\t" + input_dataframe_path)
         if opt == '--true-false-mixed':
             true_vs_false = False
             true_and_false_vs_mix = True
+            # HERE add log
+            logging.warning("--cls problem\t true and false VS mixture")
         if opt == '--sampling-strategy':
             strategy = str(arg)
+            # HERE change var value + log
             if strategy == "upsample":
                 upsampleStrategy = True
+                logging.warning("--sampling-strategy\t" + strategy)
             if strategy == "downsample":
                 downsampleStrategy = True
+                logging.warning("--sampling-strategy\t" + strategy)
+    # HERE add logs
+    if true_vs_false:
+        logging.warning("--cls problem\t true VS false")
+    if strategy!= "upsample" and strategy!= "downsample":
+        logging.warning("--sampling-strategy\tNONE")
+    logging.warning("")
     # except:
     #     print('Arguments parser error, try -h')
     #     exit()
@@ -359,18 +362,17 @@ if __name__ == '__main__':
 
         line = f.readline()
         parts = line.split(sep)
-        #lines = f.readline()
-        #parts = lines[0].split(sep)
-        print("C")
+
         if text_input_features:
             dims = len(parts) - 1
         else:
             dims = len(parts) - 1
         f.close()
-        print("B")
+
         # create a list of col names
         cnames = ['nodeID']
-        for i in range(0, dims - 1):
+        # HERE remove -1 from range
+        for i in range(0, dims):
             cnames.append("feature" + str(i))
         cnames.append('target')
 
@@ -379,9 +381,9 @@ if __name__ == '__main__':
         list_of_lists = []
         i_count = 0
         other_count = 0
-        print("A")
-        f = open(input_path, 'r', encoding='utf8')
 
+        f = open(input_path, 'r', encoding='utf8')
+        # HERE I change how we read the file, memory problem on my pc
         line = f.readline()
         while line:
         #for line in tqdm(lines):
@@ -390,11 +392,11 @@ if __name__ == '__main__':
             if parts[0].startswith("<"):
                 parts[0] = parts[0][1:-1]
             if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
-                other_count += 1
-                if other_count % 1000000 == 0:
-                    print("****read " + str(other_count))
                 line = f.readline()
                 continue
+            '''if parts[0] not in LeoExpClaims:
+                line = f.readline()
+                continue'''
             parts[1:dims] = [float(part) for part in parts[1:dims]]
 
             if not text_input_features:
@@ -420,32 +422,32 @@ if __name__ == '__main__':
             if i_count % 1000 == 0:
                 print("read " + str(i_count))
 
-
+        #print("readed claims total: " + str(i_count))
         df = df.append(pd.DataFrame(list_of_lists, columns=df.columns))
-        print("writing dataframe on file....")
+        #print("writing dataframe on file....")
         df.to_csv(output_dataframe_path, sep='\t')
     else:
         # read file already preprared with feat and target
         df = pd.read_csv(input_dataframe_path, sep='\t', encoding='utf-8')
 
     print("It is time to balance the dataset")
-    # drop claim where claim ID not recognized
+    # drop claim where are not interested in
     df = df[df.target != 'OTHER'] #-1
     if true_vs_false:
-        df = df[df.target != 'MIXTURE']#-2
+        df = df[df.target != 'MIXTURE']#2
     if true_and_false_vs_mix:
-        df.loc[df['target'] == 3, 'target'] = 1
+        df.loc[df['target'] == 'TRUE', 'target'] = 'FALSE'#df.loc[df['target'] == 3, 'target'] = 1
     data = df
     x_feature_vectors = data.drop('target', axis=1).drop('nodeID',
                                                          axis=1).values
-
+    # HERE add code
     # separate minority and majority classes
     if true_vs_false:
-        false_cls = data[data.target == 1]
-        true_cls = data[data.target == 3]
+        false_cls = data[data.target == 'FALSE']#1
+        true_cls = data[data.target == 'TRUE']#3
     if true_and_false_vs_mix:
-        false_cls = data[data.target == 1]
-        true_cls = data[data.target == 2]
+        false_cls = data[data.target == 'FALSE']#1
+        true_cls = data[data.target == 'MIXTURE']#2
 
     if false_cls.shape[0] > true_cls.shape[0]:
         minority = true_cls
@@ -453,12 +455,12 @@ if __name__ == '__main__':
     else:
         minority = false_cls
         majority = true_cls
-    print("shape before sampling")
-    print(false_cls.shape[0])
-    print(true_cls.shape[0])
+    #print("shape before sampling")
+    #print(false_cls.shape[0])
+    #print(true_cls.shape[0])
 
     if upsampleStrategy:
-        print("upsample strategy adopted")
+        #print("upsample strategy adopted")
         # upsample minority
         minority_upsampled = resample(minority,
                                       replace=True,  # sample with replacement
@@ -468,7 +470,7 @@ if __name__ == '__main__':
         # combine majority and upsampled minority
         upsampled = pd.concat([majority, minority_upsampled])
         # check new class counts
-        print(upsampled.target.value_counts())
+        #print(upsampled.target.value_counts())
         data = upsampled
 
     elif downsampleStrategy:
@@ -481,16 +483,23 @@ if __name__ == '__main__':
         # combine minority and downsampled majority
         downsampled = pd.concat([majority_downsampled, minority])
         # check new class counts
-        print("shape after sampling")
-        print(downsampled.target.value_counts())
+        #print("shape after sampling")
+        #print(downsampled.target.value_counts())
         data = downsampled
 
-    print("check sampling")
-    print(data.target.value_counts())
+    #HERE replace target value
+    data.loc[data['target'] == 'TRUE', 'target'] = 3
+    data.loc[data['target'] == 'MIXTURE', 'target'] = 2
+    data.loc[data['target'] == 'FALSE', 'target'] = 1
+
+    #print("check sampling")
+    #print(data.target.value_counts())
     x_feature_vectors = data.drop('target', axis=1).drop('nodeID', axis=1).values
-    print(x_feature_vectors.shape)
+    #print(x_feature_vectors.shape)
     y_class_vector = data['target'].values
-    y_class_vector = y_class_vector.astype('int')
+
+    # HERE add type specification
+    y_class_vector = y_class_vector.astype("int")
     print(y_class_vector.shape)
     print(data['target'].value_counts())
 
@@ -498,19 +507,19 @@ if __name__ == '__main__':
     models_dict = dict()
     model_list = specify_models()
 
+    # HERE remove my scores
     '''my_scores = {
         'acc': 'accuracy',
         'prec_macro': 'precision_macro',
         'rec_macro': 'recall_macro',
     }'''
+    # HERE more fine grained scoring output
     my_scores = scoring_functions.overall_scoring()
-    # my_scores = {'accuracy': 'accuracy','prec_macro': 'precision_macro','rec_macro': 'recall_macro'}
 
     kfold = KFold(n_splits=10, random_state=100)
     for model_dict in model_list:
         print("Cross Validation for " + str(model_dict['name']))
-        print(
-            make_cls(model_dict,
+        print(make_cls(model_dict,
                      x_feature_vectors,
                      y_class_vector,
                      my_scores,
