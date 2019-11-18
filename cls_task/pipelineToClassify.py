@@ -18,7 +18,7 @@ from sklearn.utils import resample
 from tqdm import tqdm
 
 from cls_task import scoring_functions
-from cls_task.fold_generation import generate_splits
+from cls_task.split_generation import generate_splits
 
 logging.basicConfig(filename='app.log',
                     filemode='a',
@@ -38,13 +38,16 @@ def get_class_offline(claimID):
 
 
 def specify_models():
-    nbayes = {'name': 'Naive Bayes', 'class': GaussianNB(), 'parameters': {}}
+    nbayes = {'name': 'Naive Bayes', 'class': GaussianNB(), 'parameters': {}, 'tentative_best_parameters': {}}
 
     knear = {
         'name': 'K Nearest Neighbors Classifier',
         'class': KNeighborsClassifier(),
         'parameters': {
             'n_neighbors': range(1, 12)
+        },
+        'tentative_best_parameters': {
+            'n_neighbors': 1
         }
     }
 
@@ -52,7 +55,10 @@ def specify_models():
         'name': "Logistic Regression with LASSO",
         'class': LogisticRegression(penalty='l1'),
         'parameters': {
-            'C': [0.001, 0.01, 0.1, 1, 10, 100]
+            'C': [0.1, 1, 10, 100]
+        },
+        'tentative_best_parameters': {
+            'C': 1
         }
     }
 
@@ -60,9 +66,14 @@ def specify_models():
         'name': "Stochastic Gradient Descent Classifier",
         'class': SGDClassifier(),
         'parameters': {
-            'max_iter': [100, 1000],
+            'max_iter': [100, 500],
             'alpha': [0.0001, 0.001, 0.01, 0.1]
+        },
+        'tentative_best_parameters': {
+            'max_iter': 100,
+            'alpha': 0.001
         }
+
     }
 
     decis_tree = {
@@ -70,6 +81,9 @@ def specify_models():
         'class': DecisionTreeClassifier(),
         'parameters': {
             'max_depth': range(3, 15)
+        },
+        'tentative_best_parameters': {
+            'max_depth': 14
         }
     }
 
@@ -78,6 +92,9 @@ def specify_models():
         'class': RandomForestClassifier(),
         'parameters': {
             'n_estimators': [10, 20, 50, 100, 200]
+        },
+        'tentative_best_parameters': {
+            'n_estimators': 200
         }
     }
 
@@ -86,6 +103,9 @@ def specify_models():
         'class': ExtraTreesClassifier(),
         'parameters': {
             'n_estimators': [10, 20, 50, 100, 200]
+        },
+        'tentative_best_parameters': {
+            'n_estimators': 100
         }
     }
     svc_linear = {
@@ -93,6 +113,9 @@ def specify_models():
         'class': LinearSVC(),
         'parameters': {
             'C': [0.001, 0.01, 0.1, 1, 10, 100]
+        },
+        'tentative_best_parameters': {
+            'C': 0.001
         }
     }
 
@@ -102,19 +125,23 @@ def specify_models():
         'parameters': {
             'C': [0.001, 0.01, 0.1, 1, 10, 100],
             'gamma': [0.001, 0.01, 0.1, 1, 10, 100]
+        },
+        'tentative_best_parameters': {
+            'C': 1,
+            'gamma': 1
         }
     }
 
     nn_mlp = {
         'name': 'multi-layer perceptron',
-        'class': MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1),
+        'class': MLPClassifier(solver='adam', learning_rate="adaptive", alpha=1e-5, random_state=100,
+                               hidden_layer_sizes=(300, 10)),
         'parameters': {
-            'hidden_layer_sizes': [(5, 2), (3, 2)]
         }
     }
     lis = list([
-        nbayes, knear, svc_linear, sv_radial, loglas, sgdc, decis_tree, ranfor,
-        extrerantree
+        extrerantree, ranfor, nbayes, sv_radial, loglas, sgdc, decis_tree, knear
+        # nn_mlp
     ])
 
     return lis
@@ -130,7 +157,7 @@ def subgraph2vec_tokenizer(s):
     return [line.split(' ')[0] for line in s.split('\n')]
 
 
-def make_cls(model_dict, X, y, splits, jobs=1, metric='f1'):
+def make_cls(model_dict, X, y, splits, jobs=1, metric='f1', estimate_parameters=False):
     '''
 		model_dict : We will pass in the dictionaries from the list you just created one by one to this parameter
 		X: The input data
@@ -143,7 +170,8 @@ def make_cls(model_dict, X, y, splits, jobs=1, metric='f1'):
     param_grid = model_dict['parameters']
     cls_app = model_dict['class']
     logging.warning('MODEL ' + str(name))
-    if len(param_grid) > 0:
+    if len(param_grid) > 0 and estimate_parameters:
+        print("Grid Search for " + str(model_dict['name']))
         grid_obj = GridSearchCV(model_dict['class'],
                                 param_grid,
                                 scoring=metric,
@@ -157,10 +185,13 @@ def make_cls(model_dict, X, y, splits, jobs=1, metric='f1'):
         # best_score= clf.fit(X,y).best_score_
         best_model = grid_obj
         cls_app.set_params(**best_parameters)
-
+    elif not estimate_parameters:
+        tentative_best_parameters = model_dict['tentative_best_parameters']
+        cls_app.set_params(**tentative_best_parameters)
     # scoring = ['precision_macro', 'recall_macro', 'accuracy']
 
     # HERE ADD SOURCE CODE WITH NEW SCORING FUNCTION
+    print("Cross Validation for " + str(model_dict['name']))
     scoring = scoring_functions.overall_scoring()
     results_kfold = cross_validate(cls_app, X, y, scoring=scoring, cv=splits, return_train_score=False, n_jobs=jobs)
 
@@ -197,7 +228,7 @@ def make_cls(model_dict, X, y, splits, jobs=1, metric='f1'):
     logging.warning(str_out)
     logging.warning("+++++++++++++++++++++")
 
-    if len(param_grid) == 0:
+    if len(param_grid) == 0 or not estimate_parameters:
         best_score = sum(acc_list) / len(acc_list)
         best_model = name
 
@@ -234,6 +265,8 @@ if __name__ == '__main__':
 
     write_splits = False
 
+    estimate_parameters = False
+
     jobs = 1
 
     strategy = "None"
@@ -241,7 +274,8 @@ if __name__ == '__main__':
     # try:
     opts, args = getopt.getopt(sys.argv[1:], "", ["input-features=",
                                                   "true-false-mixed", "sampling-strategy=", "rating-path=",
-                                                  "text-input-features", "error-file", "write-splits", "jobs="])
+                                                  "text-input-features", "error-file", "write-splits", "jobs=",
+                                                  "estimate-parameters"])
     # --generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear.tsv"
     # --dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
 
@@ -277,6 +311,8 @@ if __name__ == '__main__':
                 logging.warning("--sampling-strategy\t" + strategy)
         if opt == "--write-splits":
             write_splits = True
+        if opt == "--estimate-parameters":
+            estimate_parameters = True
         if opt == "--jobs":
             jobs = int(arg)
     # HERE add logs
@@ -419,13 +455,12 @@ if __name__ == '__main__':
 
     splits, kfold = generate_splits(data, seed=100, write=True)
 
-    for model_dict in model_list:
-        print("Cross Validation for " + str(model_dict['name']))
+    for model_dict in tqdm(model_list):
         print(make_cls(model_dict,
                        x_feature_vectors,
                        y_class_vector,
                        kfold,
                        jobs=jobs,
-                       metric=my_scores))
+                       metric=my_scores, estimate_parameters=estimate_parameters))
 
     pass
