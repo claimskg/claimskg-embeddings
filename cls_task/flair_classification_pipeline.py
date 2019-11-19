@@ -165,16 +165,16 @@ if __name__ == "__main__":
                 # word_embeddings = [OpenAIGPT2Embeddings()]  # , RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
                 word_embeddings = [RoBERTaEmbeddings()]
 
-                document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=512, reproject_words=True,
-                                                            reproject_words_dimension=512, bidirectional=True,
-                                                            rnn_layers=1,
-                                                            rnn_type='GRU')
+                document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=300, reproject_words=True,
+                                                            reproject_words_dimension=300, bidirectional=True,
+                                                            rnn_layers=5,
+                                                            rnn_type='LSTM')
 
                 classifier = TextClassifier(document_embeddings, label_dictionary=corpus.make_label_dictionary(),
                                             multi_label=False)
                 trainer = ModelTrainer(classifier, corpus)
-                trainer.train('./' + dir + "/model/", max_epochs=20, embeddings_storage_mode=compute,
-                              learning_rate=0.1,
-                              mini_batch_size=32,
-                              anneal_factor=0.5,
-                              patience=5, save_final_model=True)
+                trainer.train('./' + dir + "/model/", max_epochs=100, embeddings_storage_mode=compute,
+                              learning_rate=0.01,
+                              mini_batch_size=64,
+                              anneal_factor=0.1,
+                              patience=5, save_final_model=True, anneal_with_restarts=True)
