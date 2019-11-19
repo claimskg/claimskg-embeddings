@@ -63,25 +63,33 @@ def generate_dataset(file_path, labels):
 
     claims = get_all_claims(labels)
 
-    mkdir(file_path + "/deep")
-
-    for i in range(1, 10):
+    if not os.path.exists(file_path + "/deep"):
+        mkdir(file_path + "/deep")
+    fail_count = 0
+    for i in range(1, 11):
         fold_path = file_path + "/deep/split" + str(i)
-        mkdir(fold_path)
+        if not os.path.exists(fold_path):
+            mkdir(fold_path)
         with open(file_path + "/split_test_" + str(i), "r") as test_fold:
             lines = test_fold.readlines()
             claims_list = []
             for line in lines:
-                claims_list.append(claims[line.strip()])
+                try:
+                    claims_list.append(claims[line.strip()])
+                except:
+                    fail_count += 1
             with open(fold_path + "/test.txt", mode="w") as f:
                 write_fasttext_corpus(f, claims_list)
 
         with open(file_path + "/split_train_" + str(i), "r") as train_fold:
+
             lines = train_fold.readlines()
             claims_list = []
             for line in lines:
-                claims_list.append(claims[line.strip()])
-
+                try:
+                    claims_list.append(claims[line.strip()])
+                except:
+                    fail_count += 1
             train_end = int(0.9 * len(claims_list))
 
             with open(fold_path + "/train.txt", mode="w") as f:
