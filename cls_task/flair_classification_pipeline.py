@@ -66,9 +66,9 @@ def generate_dataset(file_path, labels):
     mkdir(file_path + "/deep")
 
     for i in range(1, 10):
-        fold_path = file_path + "/deep/fold" + str(i)
+        fold_path = file_path + "/deep/split" + str(i)
         mkdir(fold_path)
-        with open(file_path + "/fold_test_" + str(i), "r") as test_fold:
+        with open(file_path + "/split_test_" + str(i), "r") as test_fold:
             lines = test_fold.readlines()
             claims_list = []
             for line in lines:
@@ -76,7 +76,7 @@ def generate_dataset(file_path, labels):
             with open(fold_path + "/test.txt", mode="w") as f:
                 write_fasttext_corpus(f, claims_list)
 
-        with open(file_path + "/fold_train_" + str(i), "r") as train_fold:
+        with open(file_path + "/split_train_" + str(i), "r") as train_fold:
             lines = train_fold.readlines()
             claims_list = []
             for line in lines:
@@ -148,7 +148,7 @@ if __name__ == "__main__":
             compute = args[1]
         for root, dirs, files in os.walk(corpus_path):
             for dir in dirs:
-                print("Processing " + dir+" ...")
+                print("Processing " + dir + " ...")
                 corpus: Corpus = ClassificationCorpus(corpus_path + "/" + dir,
                                                       test_file='test.txt',
                                                       dev_file='dev.txt',

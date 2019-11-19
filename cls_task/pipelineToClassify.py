@@ -453,14 +453,13 @@ if __name__ == '__main__':
     # HERE more fine grained scoring output
     my_scores = scoring_functions.overall_scoring()
 
-    splits, kfold = generate_splits(data, seed=100, write=True)
+    splits, kfold = generate_splits(data, seed=100, write=write_splits)
 
-    for model_dict in tqdm(model_list):
-        print(make_cls(model_dict,
-                       x_feature_vectors,
-                       y_class_vector,
-                       kfold,
-                       jobs=jobs,
-                       metric=my_scores, estimate_parameters=estimate_parameters))
-
-    pass
+    if not write_splits:
+        for model_dict in tqdm(model_list):
+            print(make_cls(model_dict,
+                           x_feature_vectors,
+                           y_class_vector,
+                           kfold,
+                           jobs=jobs,
+                           metric=my_scores, estimate_parameters=estimate_parameters))
