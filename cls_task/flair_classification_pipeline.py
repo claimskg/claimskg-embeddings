@@ -5,13 +5,15 @@ import sys
 import traceback
 from os import mkdir
 
+import numpy
 from SPARQLWrapper import SPARQLWrapper
 from flair.data import Corpus
 # python cls_embed_claim_from_text.py ../../../data/entities.list ../../../data/claimskg.dataset.csv ../../../data/data_embeddings_utils/text_embeddings_claims
 from flair.datasets import ClassificationCorpus
-from flair.embeddings import DocumentRNNEmbeddings, RoBERTaEmbeddings
+from flair.embeddings import DocumentRNNEmbeddings, PooledFlairEmbeddings
 from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
+from sklearn.metrics import confusion_matrix
 
 from cls_task.sparql_offset_fetcher import SparQLOffsetFetcher
 
@@ -151,6 +153,11 @@ if __name__ == "__main__":
     if args[0] == 'generate':
         generate_dataset(args[1], args[2].split(","))
     else:
+        k_fold_log = open("flair_kfold.log", "w")
+        tps = []
+        tns = []
+        fps = []
+        fns = []
         corpus_path = args[0]
         if len(args) > 1:
             compute = args[1]
@@ -162,19 +169,47 @@ if __name__ == "__main__":
                                                       dev_file='dev.txt',
                                                       train_file='train.txt', in_memory=True)
 
-                # word_embeddings = [OpenAIGPT2Embeddings()]  # , RoBERTaEmbeddings(), XLNetEmbeddings(), OpenAIGPT2Embeddings()]
-                word_embeddings = [RoBERTaEmbeddings()]
+                word_embeddings = [PooledFlairEmbeddings('news-forward'), PooledFlairEmbeddings('news-backward')]
 
-                document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=300, reproject_words=True,
-                                                            reproject_words_dimension=300, bidirectional=True,
-                                                            rnn_layers=5,
-                                                            rnn_type='LSTM')
+                document_embeddings = DocumentRNNEmbeddings(word_embeddings, hidden_size=128, reproject_words=False,
+                                                            reproject_words_dimension=128, bidirectional=True,
+                                                            rnn_layers=2,
+                                                            rnn_type='LSTM',
+                                                            dropout=0.3,
+                                                            word_dropout=0.1)
 
                 classifier = TextClassifier(document_embeddings, label_dictionary=corpus.make_label_dictionary(),
                                             multi_label=False)
                 trainer = ModelTrainer(classifier, corpus)
-                trainer.train('./' + dir + "/model/", max_epochs=100, embeddings_storage_mode=compute,
-                              learning_rate=0.01,
-                              mini_batch_size=64,
-                              anneal_factor=0.1,
-                              patience=5, save_final_model=True, anneal_with_restarts=True)
+                model_path = corpus_path + "/" + dir + "/model/"
+                scores = trainer.train(model_path, max_epochs=30,
+                                       embeddings_storage_mode=compute,
+                                       learning_rate=0.5,
+                                       mini_batch_size=128,
+                                       anneal_factor=0.5,
+                                       shuffle=False,
+                                       patience=5, save_final_model=True, anneal_with_restarts=True)
+                print(scores)
+
+                classifier = TextClassifier.load(model_path + "best-model.pt")  # type: TextClassifier
+
+                expected = [sentence.labels[0].value for sentence in corpus.test.sentences]
+                predictions = [sentence.labels[0].value for sentence in classifier.predict(corpus.test.sentences)]
+
+                cm = confusion_matrix(expected, predictions)
+                tps.append(cm[0][0])
+                tns.append(cm[0][1])
+                fps.append(cm[1][0])
+                fns.append(cm[1][1])
+                k_fold_log.write("\t" +
+                                 dir + " {tp} {tn} {fp} {fn}\n".format(tp=cm[0][0], tn=cm[0][1], fp=cm[1][0],
+                                                                       fn=cm[1][1]))
+                k_fold_log.flush()
+                print("Confusion: " + str(cm))
+
+            tp_mean = numpy.array(tps).mean()
+            tn_mean = numpy.array(tns).mean()
+            fp_mean = numpy.array(fps).mean()
+            fn_mean = numpy.array(fns).mean()
+            k_fold_log.write("Mean CM: {tp} {tn} {fp} {fn}\n".format(tp=tp_mean, tn=tn_mean, fp=fp_mean, fn=fn_mean))
+            k_fold_log.close()
