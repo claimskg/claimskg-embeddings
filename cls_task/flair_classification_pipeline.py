@@ -5,7 +5,9 @@ import sys
 import traceback
 from os import mkdir
 
+import flair
 import numpy
+import torch
 from SPARQLWrapper import SPARQLWrapper
 from flair.data import Corpus
 # python cls_embed_claim_from_text.py ../../../data/entities.list ../../../data/claimskg.dataset.csv ../../../data/data_embeddings_utils/text_embeddings_claims
@@ -161,6 +163,10 @@ if __name__ == "__main__":
         corpus_path = args[0]
         if len(args) > 1:
             compute = args[1]
+        if len(args) > 2:
+            cuda_device = args[2]
+            flair.device = torch.device('cuda:' + cuda_device)
+
         for root, dirs, files in os.walk(corpus_path):
             for dir in dirs:
                 if "split" in dir:
