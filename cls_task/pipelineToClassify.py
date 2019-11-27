@@ -354,25 +354,28 @@ if __name__ == '__main__':
 
     for line in tqdm(lines):
         # print(line.translate(table), end="")
-        parts = line.strip().split(sep)
-        if parts[0].startswith("<"):
-            parts[0] = parts[0][1:-1]
-        if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
-            continue
-        parts[1:dims] = [float(part) for part in parts[1:dims]]
+        try:
+            parts = line.strip().split(sep)
+            if parts[0].startswith("<"):
+                parts[0] = parts[0][1:-1]
+            if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
+                continue
+            parts[1:dims] = [float(part) for part in parts[1:dims]]
 
-        if not text_input_features:
-            line_class = get_class_offline(parts[0]).strip()
-            parts.append(line_class)
-        else:
-            line_class = parts[-1]
+            if not text_input_features:
+                line_class = get_class_offline(parts[0]).strip()
+                parts.append(line_class)
+            else:
+                line_class = parts[-1]
 
-        if true_and_false_vs_mix and (
-                line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
-            0] not in exclusion_list):
-            list_of_lists.append(parts)
-        elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
-            list_of_lists.append(parts)
+            if true_and_false_vs_mix and (
+                    line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
+                0] not in exclusion_list):
+                list_of_lists.append(parts)
+            elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
+                list_of_lists.append(parts)
+        except KeyError:
+            logging.info("Skipping claim not found in rating mapping: "+line)
 
     df = pandas.DataFrame(list_of_lists, columns=cnames)
 
