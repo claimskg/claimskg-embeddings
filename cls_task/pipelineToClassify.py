@@ -5,6 +5,8 @@ import logging.config
 import sys
 
 import pandas
+from SPARQLWrapper import SPARQLWrapper, JSON
+from redis import StrictRedis
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.metrics import (accuracy_score, precision_score, recall_score)
@@ -25,6 +27,46 @@ logging.basicConfig(filename='app.log',
                     format='%(name)s - %(levelname)s - %(message)s')
 
 logging.warning("----------New run-------------")
+
+sparql_kg = SPARQLWrapper("http://localhost:8890/sparql")
+redis = StrictRedis()
+
+
+def get_class(claimID):
+    result = None
+    if redis:
+        result = redis.get(claimID)
+        if result is not None:
+            return result
+    if not redis or result is None:
+        str_query = """
+            PREFIX schema: <http://schema.org/>
+            PREFIX nif: <http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#>
+
+                SELECT ?text ?ratingName WHERE {
+
+                <""" + claimID + """> schema:text ?text .
+
+                ?claimReview schema:itemReviewed <""" + claimID + """> ; schema:reviewRating ?rating .
+                ?rating schema:author <http://data.gesis.org/claimskg/organization/claimskg> ; schema:alternateName ?ratingName }
+            """
+        # print(str_query)
+        # try:
+        sparql_kg.setQuery(str_query)  # 1 false, 3 true
+        sparql_kg.setReturnFormat(JSON)
+        results = sparql_kg.query().convert()
+        rating = str(-1)
+        for result in results["results"]["bindings"]:
+            # check if ?o is a blank node (if yes, then iterate on it -- add on queue )
+            rating = str(result["ratingName"]['value'])
+
+        if redis and rating is not None:
+            redis.set(claimID, rating)
+        # except:
+        #     print("Exception -- Skipped claim ID" + str(claimID))
+        # return "-1"
+        return rating
+
 
 ratings_dict = dict()
 with open("ratings.tsv", "r") as ratings:
@@ -351,31 +393,35 @@ if __name__ == '__main__':
     list_of_lists = []
     i_count = 0
     other_count = 0
-
+    not_found_count = 0
     for line in tqdm(lines):
         # print(line.translate(table), end="")
-        try:
-            parts = line.strip().split(sep)
-            if parts[0].startswith("<"):
-                parts[0] = parts[0][1:-1]
-            if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
-                continue
-            parts[1:dims] = [float(part) for part in parts[1:dims]]
 
-            if not text_input_features:
+        parts = line.strip().split(sep)
+        if parts[0].startswith("<"):
+            parts[0] = parts[0][1:-1]
+        if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
+            continue
+        parts[1:dims] = [float(part) for part in parts[1:dims]]
+        line_class = ""
+        if not text_input_features:
+            try:
                 line_class = get_class_offline(parts[0]).strip()
+                if line_class == '-1':
+                    not_found_count += 1
                 parts.append(line_class)
-            else:
-                line_class = parts[-1]
+            except KeyError:
+                not_found_count += 1
+                pass
+        else:
+            line_class = parts[-1]
 
-            if true_and_false_vs_mix and (
-                    line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
-                0] not in exclusion_list):
-                list_of_lists.append(parts)
-            elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
-                list_of_lists.append(parts)
-        except KeyError:
-            logging.info("Skipping claim not found in rating mapping: "+line)
+        if true_and_false_vs_mix and (
+                line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
+            0] not in exclusion_list):
+            list_of_lists.append(parts)
+        elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
+            list_of_lists.append(parts)
 
     df = pandas.DataFrame(list_of_lists, columns=cnames)
 

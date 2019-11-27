@@ -22,11 +22,12 @@ if __name__ == '__main__':
     filter = "filter" in args
 
     for reviewRating in reviewRatingList:
-        basic_g, claim_id_set = get_author_triples_from_claimKG(reviewRating, basic_g, claim_id_set)
-        basic_g, claim_id_set = get_mentions_triples_from_claimKG(reviewRating, basic_g, claim_id_set)
-        basic_g, claim_id_set = get_keywords_triples_from_claimKG(reviewRating, basic_g, claim_id_set)
-        basic_g, claim_id_set = get_publication_date_triples_from_claimKG(reviewRating, basic_g, claim_id_set)
-        basic_g, claim_id_set = get_sameAs_triples_from_claimKG(reviewRating, basic_g, claim_id_set)
+        basic_g, claim_id_set = get_author_triples_from_claimKG(reviewRating, basic_g, claim_id_set, sparql_kg)
+        basic_g, claim_id_set = get_mentions_triples_from_claimKG(reviewRating, basic_g, claim_id_set, sparql_kg)
+        basic_g, claim_id_set = get_keywords_triples_from_claimKG(reviewRating, basic_g, claim_id_set, sparql_kg)
+        basic_g, claim_id_set = get_publication_date_triples_from_claimKG(reviewRating, basic_g, claim_id_set,
+                                                                          sparql_kg)
+        basic_g, claim_id_set = get_sameAs_triples_from_claimKG(reviewRating, basic_g, claim_id_set, sparql_kg)
         print("New size of basic_g " + str(len(basic_g)))
         print("New size of claim id " + str(len(claim_id_set)))
 
