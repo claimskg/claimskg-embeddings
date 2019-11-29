@@ -147,7 +147,7 @@ def specify_models():
             'n_estimators': [10, 20, 50, 100, 200]
         },
         'tentative_best_parameters': {
-            'n_estimators': 100
+            'n_estimators': 200
         }
     }
     svc_linear = {
@@ -165,8 +165,8 @@ def specify_models():
         'name': 'Support Vector Classifier with Radial Kernel',
         'class': SVC(kernel='rbf'),
         'parameters': {
-            'C': [0.001, 0.01, 0.1, 1, 10, 100],
-            'gamma': [0.001, 0.01, 0.1, 1, 10, 100]
+            'C': [1],
+            'gamma': [0.001, 1]
         },
         'tentative_best_parameters': {
             'C': 1,
@@ -181,10 +181,7 @@ def specify_models():
         'parameters': {
         }
     }
-    lis = list([
-        extrerantree, ranfor, nbayes, sv_radial, loglas, sgdc, decis_tree, knear
-        # nn_mlp
-    ])
+    lis = list([extrerantree, ranfor, nbayes, sgdc, decis_tree, loglas, sv_radial])
 
     return lis
 
@@ -377,7 +374,7 @@ if __name__ == '__main__':
     parts = lines[0].split(sep)
 
     if text_input_features:
-        dims = len(parts) - 1
+        dims = len(parts)
     else:
         dims = len(parts) - 1
     f.close()
@@ -385,8 +382,12 @@ if __name__ == '__main__':
     # create a list of col names
     cnames = ['nodeID']
     # HERE remove -1 from range
-    for i in range(0, dims):
-        cnames.append("feature" + str(i))
+    if not text_input_features:
+        for i in range(0, dims):
+            cnames.append("feature" + str(i))
+    else:
+        for i in range(0, dims - 2):
+            cnames.append("feature" + str(i))
     cnames.append('target')
 
     # Creating vectors for features and class/response Variable
@@ -402,9 +403,9 @@ if __name__ == '__main__':
             parts[0] = parts[0][1:-1]
         if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
             continue
-        parts[1:dims] = [float(part) for part in parts[1:dims]]
         line_class = ""
         if not text_input_features:
+            parts[1:dims] = [float(part) for part in parts[1:dims]]
             try:
                 line_class = get_class_offline(parts[0]).strip()
                 if line_class == '-1':
@@ -414,7 +415,8 @@ if __name__ == '__main__':
                 not_found_count += 1
                 pass
         else:
-            line_class = parts[-1]
+            line_class = parts[-1].strip()
+            parts[1:dims - 1] = [float(part) for part in parts[1:dims - 1]]
 
         if true_and_false_vs_mix and (
                 line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
