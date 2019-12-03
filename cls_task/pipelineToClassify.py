@@ -6,6 +6,7 @@ import sys
 
 import pandas
 from SPARQLWrapper import SPARQLWrapper, JSON
+from pandas import DataFrame
 from redis import StrictRedis
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier
@@ -286,9 +287,71 @@ def my_scorer_funct(estimator, x, y):
     return a, p, r
 
 
+def load_embedding(file, text_embeddings: bool = False, true_and_false_vs_mix: bool = False) -> pandas.DataFrame:
+    if text_embeddings:
+        sep = ","
+    else:
+        sep = "\t"
+    lines = file.readlines()
+    parts = lines[0].split(sep)
+
+    dims = len(parts)
+
+    f.close()
+
+    # create a list of col names
+    cnames = ['nodeID']
+    # HERE remove -1 from range
+    if not text_embeddings:
+        for i in range(0, dims - 1):
+            cnames.append("feature" + str(i))
+    else:
+        for i in range(0, dims - 2):
+            cnames.append("feature" + str(i))
+    cnames.append('target')
+
+    # Creating vectors for features and class/response Variable
+    list_of_lists = []
+
+    not_found_count = 0
+    for line in tqdm(lines):
+
+        parts = line.strip().split(sep)
+        if parts[0].startswith("<"):
+            parts[0] = parts[0][1:-1]
+        if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
+            continue
+        line_class = ""
+        if not text_embeddings:
+            parts[1:dims] = [float(part) for part in parts[1:dims]]
+            try:
+                line_class = get_class_offline(parts[0]).strip()
+                if line_class == '-1':
+                    not_found_count += 1
+                parts.append(line_class)
+            except KeyError:
+                not_found_count += 1
+                pass
+        else:
+            line_class = parts[-1].strip()
+            parts[1:dims - 1] = [float(part) for part in parts[1:dims - 1]]
+
+        if true_and_false_vs_mix and (
+                line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
+            0] not in exclusion_list):
+            list_of_lists.append(parts)
+        elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
+            list_of_lists.append(parts)
+
+    return pandas.DataFrame(list_of_lists, columns=cnames)
+
+
 if __name__ == '__main__':
     precreated_file_ready = True
-    input_path = None
+
+    graph_input_features = False
+    graph_embeddings_input_path = None
+
     output_dataframe_path = None
     input_dataframe_path = None
     exclusion_file_path = None
@@ -300,6 +363,8 @@ if __name__ == '__main__':
     downsampleStrategy = False
 
     text_input_features = False
+    text_embeddings_input_path = ""
+
     exclusion_list = []
 
     write_splits = False
@@ -311,19 +376,20 @@ if __name__ == '__main__':
     strategy = "None"
 
     # try:
-    opts, args = getopt.getopt(sys.argv[1:], "", ["input-features=",
+    opts, args = getopt.getopt(sys.argv[1:], "", ["graph-input-features=",
                                                   "true-false-mixed", "sampling-strategy=", "rating-path=",
-                                                  "text-input-features", "error-file", "write-splits", "jobs=",
+                                                  "text-input-features=", "error-file", "write-splits", "jobs=",
                                                   "estimate-parameters"])
     # --generate-dataframe="C:\\fact_checking\\data/dataframe_basic_claimkg.csv", --input-features="C:\\fact_checking\\data\\claimskg_1.0_embeddings_d400_it1000_opdot_softmax_t0.25_trlinear.tsv"
     # --dataframe "C:\\fact_checking\\dataframe_CBD_all_11_07_model_6.csv"
 
     for opt, arg in opts:
 
-        if opt == '--input-features':
-            input_path = str(arg)
+        if opt == '--graph-input-features':
+            graph_embeddings_input_path = str(arg)
+            graph_input_features = True
             # HERE add log
-            logging.warning("--input-features\t" + input_path)
+            logging.warning("--input-features\t" + graph_embeddings_input_path)
         if opt == '--exclusion-file':
             exclusion_file_path = str(arg)
             exclusion_file = open(exclusion_file_path, "r", encoding="utf8")
@@ -331,6 +397,7 @@ if __name__ == '__main__':
             logging.warning("--exclusion-file\t" + exclusion_file_path)
             exclusion_list = exclusion_file.readlines()
         if opt == '--text-input-features':
+            text_embeddings_input_path = str(arg)
             text_input_features = True
             # HERE add log
             logging.warning("--text-input-features\t" + str(text_input_features))
@@ -354,6 +421,11 @@ if __name__ == '__main__':
             estimate_parameters = True
         if opt == "--jobs":
             jobs = int(arg)
+
+    if not graph_input_features and text_input_features:
+        logging.error("Supply at least one of graph-input-features or text-input-features")
+        exit(1)
+
     # HERE add logs
     if true_vs_false:
         logging.warning("--cls problem\t true VS false")
@@ -364,68 +436,26 @@ if __name__ == '__main__':
     #     print('Arguments parser error, try -h')
     #     exit()
 
+    df = None
+    df_text = None  # type: DataFrame
+    df_graph = None  # type: DataFrame
+    if graph_input_features:
+        f = open(graph_embeddings_input_path, 'r', encoding='utf8')
+        df = df_graph = load_embedding(f, False, true_and_false_vs_mix)
+        df_graph = df_graph.add_suffix("_g")
+        df_graph.rename(columns={'nodeID_g': 'nodeID'}, inplace=True)
+
     if text_input_features:
-        sep = ","
-    else:
-        sep = "\t"
-    f = open(input_path, 'r', encoding='utf8')
+        f = open(text_embeddings_input_path, 'r', encoding='utf8')
+        df = df_text = load_embedding(f, True, true_and_false_vs_mix)
+        df_text = df_text.add_suffix("_t")
+        df_text.rename(columns={'nodeID_t': 'nodeID'}, inplace=True)
 
-    lines = f.readlines()
-    parts = lines[0].split(sep)
-
-    if text_input_features:
-        dims = len(parts)
-    else:
-        dims = len(parts) - 1
-    f.close()
-
-    # create a list of col names
-    cnames = ['nodeID']
-    # HERE remove -1 from range
-    if not text_input_features:
-        for i in range(0, dims):
-            cnames.append("feature" + str(i))
-    else:
-        for i in range(0, dims - 2):
-            cnames.append("feature" + str(i))
-    cnames.append('target')
-
-    # Creating vectors for features and class/response Variable
-    list_of_lists = []
-    i_count = 0
-    other_count = 0
-    not_found_count = 0
-    for line in tqdm(lines):
-        # print(line.translate(table), end="")
-
-        parts = line.strip().split(sep)
-        if parts[0].startswith("<"):
-            parts[0] = parts[0][1:-1]
-        if not (parts[0].startswith("http://data.gesis.org/claimskg/creative_work/")):
-            continue
-        line_class = ""
-        if not text_input_features:
-            parts[1:dims] = [float(part) for part in parts[1:dims]]
-            try:
-                line_class = get_class_offline(parts[0]).strip()
-                if line_class == '-1':
-                    not_found_count += 1
-                parts.append(line_class)
-            except KeyError:
-                not_found_count += 1
-                pass
-        else:
-            line_class = parts[-1].strip()
-            parts[1:dims - 1] = [float(part) for part in parts[1:dims - 1]]
-
-        if true_and_false_vs_mix and (
-                line_class == 'MIXTURE' or line_class == 'TRUE' or line_class == 'FALSE' and parts[
-            0] not in exclusion_list):
-            list_of_lists.append(parts)
-        elif line_class == 'TRUE' or line_class == 'FALSE' and parts[0] not in exclusion_list:
-            list_of_lists.append(parts)
-
-    df = pandas.DataFrame(list_of_lists, columns=cnames)
+    if text_input_features and graph_input_features:
+        df = pandas.merge(df_text, df_graph, on=['nodeID'])
+        df.rename(columns={'target_g': 'target'}, inplace=True)
+        df.drop(columns=['target_t'], inplace=True)
+        print(df.head())
 
     print("It is time to balance the dataset")
     # drop claim where are not interested in
