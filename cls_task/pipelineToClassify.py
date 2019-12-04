@@ -8,7 +8,7 @@ import pandas
 from SPARQLWrapper import SPARQLWrapper, JSON
 from pandas import DataFrame
 from redis import StrictRedis
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.metrics import (accuracy_score, precision_score, recall_score)
 from sklearn.model_selection import (GridSearchCV, cross_validate)
@@ -25,7 +25,7 @@ from cls_task.split_generation import generate_splits
 
 logging.basicConfig(filename='app.log',
                     filemode='a',
-                    format='%(name)s - %(levelname)s - %(message)s')
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logging.warning("----------New run-------------")
 
@@ -80,7 +80,7 @@ def get_class_offline(claimID):
     return ratings_dict[claimID]
 
 
-def specify_models():
+def specify_models(jobs):
     nbayes = {'name': 'Naive Bayes', 'class': GaussianNB(), 'parameters': {}, 'tentative_best_parameters': {}}
 
     knear = {
@@ -182,7 +182,14 @@ def specify_models():
         'parameters': {
         }
     }
-    lis = list([extrerantree, ranfor, nbayes, sgdc, decis_tree, loglas, sv_radial])
+
+    stacking = {'name': 'Stacking Classifier',
+                'class': StackingClassifier(
+                    estimators=[(extrerantree['name'], extrerantree['class']), (nbayes['name'], nbayes['class']),
+                                (sv_radial['name'], sv_radial['class'])], n_jobs=jobs),
+                'parameters': {},
+                'tentative_best_parameters': {}}
+    lis = list([extrerantree, nbayes, sv_radial, stacking])
 
     return lis
 
@@ -529,7 +536,7 @@ if __name__ == '__main__':
 
     # test Different Model using KFOLD
     models_dict = dict()
-    model_list = specify_models()
+    model_list = specify_models(jobs)
 
     # HERE more fine grained scoring output
     my_scores = scoring_functions.overall_scoring()
