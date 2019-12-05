@@ -429,7 +429,7 @@ if __name__ == '__main__':
         if opt == "--jobs":
             jobs = int(arg)
 
-    if not graph_input_features and text_input_features:
+    if not graph_input_features and not text_input_features:
         logging.error("Supply at least one of graph-input-features or text-input-features")
         exit(1)
 
