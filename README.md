@@ -68,6 +68,18 @@ You will need to decompress the files before using them to reproduce the experim
 
 # 4. Reproducing the Fact verification results
 
+The full results tables from the paper are available here: 
+
+- [Unbalanced Dataset Results](complete-results/ClaimsKG Embeddings Results - Unbalanced data.pdf)
+
+- [Upsampled Dataset Results](complete-results/ClaimsKG Embeddings Results - upsampled data.pdf)
+
+
+
+
+
+
+
 
 
 
