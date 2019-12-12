@@ -7,7 +7,7 @@ All the graphs and embeddings have been generated on the basis of ClaimsKG v1 (Â
 
 
 
-<span style="color:red; font-weight:bold">The writing for this page is in progress.</span>
+**The writing for this page is in progress.**
 
 
 
