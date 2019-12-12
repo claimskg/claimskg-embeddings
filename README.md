@@ -1,5 +1,5 @@
 # claimskg-embeddings
-This repository contains all the code and data to reproduce the experiments in the paper entitled "An Empirical Study into Representation Learning Methods for Fact-Checked Claims" on the basis of the ClaimsKG knowledge graph of fact-checked claims. 
+This repository contains all the code and data to reproduce the experiments in the paper entitled "Claim Embeddings: an Empirical Study" on the basis of the ClaimsKG knowledge graph of fact-checked claims. 
 
 
 
