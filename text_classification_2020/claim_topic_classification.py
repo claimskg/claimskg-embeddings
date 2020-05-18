@@ -13,8 +13,8 @@ from sklearn.metrics import f1_score
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
 
-from topic_classification import ClaimClassifier, EvaluationSetting
-from topic_classification.embeddings import GraphEmbeddingTransformer, FlairTransformer
+from text_classification_2020 import ClaimClassifier, EvaluationSetting
+from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer
 
 logger = getLogger()
 logger.setLevel(logging.DEBUG)
@@ -29,7 +29,6 @@ if __name__ == "__main__":
 
     num_splits = 10
     seed = 45345
-    f1_score
     class_list = ["education", "healthcare", "immigration", "environment", "taxes", "elections", "crime"]
     claim_classifier = ClaimClassifier(
         class_list=class_list)

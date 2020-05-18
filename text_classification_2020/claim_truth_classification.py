@@ -5,11 +5,11 @@ from logging import getLogger
 
 import pandas
 import torch
+from SPARQLWrapper import SPARQLWrapper
 from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings
 from kbc.datasets import Dataset
 from kbc.models import CP
 from sklearn.linear_model import RidgeClassifier
-from sklearn.metrics import f1_score
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
 
@@ -29,11 +29,11 @@ if __name__ == "__main__":
 
     num_splits = 10
     seed = 45345
-    class_list = ["education", "healthcare", "immigration", "environment", "taxes", "elections", "crime"]
-    claim_classifier = ClaimClassifier(
-        class_list=class_list)
+    classes = ["TRUE", "FALSE", "MIXTURE"]
+    claim_classifier = ClaimClassifier(class_list=classes)
 
-    dataset = pandas.read_csv(args[0], sep=",")
+    sparql_kg = SPARQLWrapper("http://localhost:8890/sparql")
+
 
     # input_x_text = dataset[['text', 'headline']].apply(lambda x: ''.join(x), axis=1).to_list()
     input_x_text = dataset['text'].to_list()
