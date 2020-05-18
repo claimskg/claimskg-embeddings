@@ -8,7 +8,7 @@ from typing import List
 import numpy
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import StratifiedKFold, train_test_split, GridSearchCV, cross_validate, KFold
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_validate, KFold
 from sklearn.pipeline import make_pipeline, Pipeline
 from tqdm import tqdm
 
@@ -49,11 +49,11 @@ class EvaluationSetting:
         self.classifier = classifier
 
         self.scores = []
-        self.mean_accuracy = 0
-        self.std_accuracy = 0
+        self.mean_scores = {}
+        self.std_scores = {}
 
     def __str__(self) -> str:
-        return "{},{},{}".format(self.name, self.mean_accuracy, self.std_accuracy)
+        return "{},{},{}".format(self.name, self.mean_scores, self.std_scores)
 
 
 class ClaimClassifier:
@@ -69,6 +69,14 @@ class ClaimClassifier:
         List of classes for the classification task
         """
         # Build an index of classes so that each label is associated to an unique integer
+        # self.scoring = [('accuracy', 'accuracy'),
+        #                 ('f1', 'f1_samples'), ('P', 'precision_samples'),
+        #                 ('R', 'recall_samples'), ('Pm', 'precision_micro'),
+        #                 ('Rm', 'recall_micro'), ('PM', 'precision_macro'),
+        #                 ('RM', 'recall_macro'), ('f1m', 'f1_micro'), ('f1M', 'f1_macro')]
+        self.scoring = ['accuracy', 'f1_samples', 'precision_samples', 'recall_samples', 'precision_micro',
+                        'recall_micro', 'precision_macro',
+                        'recall_macro', 'f1_micro', 'f1_macro']
         self._index_classes(class_list)
         self.vectorizer = None
         self.classifier = None
@@ -205,7 +213,7 @@ class ClaimClassifier:
                -------
 
                List[EvaluationSetting]
-                   The list of evaluation settings, where the score, mean_accuracy and std_accuracy attributes contain the
+                   The list of evaluation settings, where the score, mean_scores and std_scores attributes contain the
                    corresponding evaluation scores
         """
 
@@ -251,7 +259,7 @@ class ClaimClassifier:
             classifier_clone = deepcopy(classifier)
             if use_pipeline:
                 scores = cross_validate(classifier_clone, input_x_remaining, y_remaining, cv=stratif,
-                                        return_estimator=True)
+                                        return_estimator=True, scoring=self.scoring)
             else:
                 if setting.vectorizer in vectorizer_instance_dict.keys():
                     X_remaining = vectorizer_instance_dict[setting.vectorizer]
@@ -261,27 +269,35 @@ class ClaimClassifier:
                         X_remaining = X_remaining.toarray()
                     vectorizer_instance_dict[setting.vectorizer] = X_remaining
 
-                scores = cross_validate(classifier_clone, X_remaining, y_remaining, cv=stratif, return_estimator=True)
+                scores = cross_validate(classifier_clone, X_remaining, y_remaining, cv=stratif, return_estimator=True,
+                                        scoring=self.scoring)
 
-            setting.scores = scores['test_score']
+            setting.scores = {}
+            setting.mean_scores = {}
+            setting.std_scores = {}
+            for scoring in self.scoring:
+                key = "test_" + scoring
+                scores_vector = scores[key]
+                setting.scores[key] = scores_vector
+                setting.mean_scores[key] = scores_vector.mean()
+                setting.std_scores[key] = scores_vector.std()
 
-            setting.mean_accuracy = setting.scores.mean()
-            setting.std_accuracy = setting.scores.std()
-
-            if setting.mean_accuracy + setting.std_accuracy > best_score:
-                best_score = setting.mean_accuracy + setting.std_accuracy
+            accuracy_key = "test_accuracy"
+            mean_acc = setting.mean_scores[accuracy_key]
+            std_acc = setting.std_scores[accuracy_key]
+            if mean_acc - std_acc > best_score:
+                best_score = mean_acc - std_acc
                 best_setting = setting
                 best_estimator_index = current_estimator_index
-            logger.info(setting)
+                logger.info(setting)
 
-            current_estimator_index += 1
+                current_estimator_index += 1
 
-        logger.info("Best estimator overall: " + str(best_setting.classifier) + " with score:" + str(
-            evaluation_settings[best_estimator_index].mean_accuracy))
-        if save_model:
-            if not isinstance(best_setting.classifier, Pipeline):
-                self._build_vector_model(input_x, vectorizer=best_setting.vectorizer)
-            self.train(best_setting.classifier, input_x, y, model_directory=model_directory, )
+                logger.info("Best estimator overall: " + str(best_setting.classifier) + " with score:" + str(
+                    evaluation_settings[best_estimator_index].mean_scores))
+                if save_model:
+                    self._build_vector_model(input_x, vectorizer=best_setting.vectorizer)
+                    self.train(best_setting.classifier, input_x, y, model_directory=model_directory, )
 
     def classify(self, input_x: List[str]):
         """

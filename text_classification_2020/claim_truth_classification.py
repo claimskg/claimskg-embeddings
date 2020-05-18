@@ -9,11 +9,12 @@ from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings
 from kbc.datasets import Dataset
 from kbc.models import CP
 from sklearn.linear_model import RidgeClassifier
+from sklearn.metrics import f1_score
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
 
-from topic_classification import ClaimClassifier, EvaluationSetting
-from topic_classification.embeddings import GraphEmbeddingTransformer, FlairTransformer
+from text_classification_2020 import ClaimClassifier, EvaluationSetting
+from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer
 
 logger = getLogger()
 logger.setLevel(logging.DEBUG)
@@ -28,7 +29,6 @@ if __name__ == "__main__":
 
     num_splits = 10
     seed = 45345
-
     class_list = ["education", "healthcare", "immigration", "environment", "taxes", "elections", "crime"]
     claim_classifier = ClaimClassifier(
         class_list=class_list)
@@ -43,10 +43,11 @@ if __name__ == "__main__":
     input_y = dataset[class_list].copy().values
 
     # Graph embeddings
-    dataset = Dataset(os.path.join("/home/tchechem/workspace/kbc/kbc/data/CKG-181019-EXT"), use_cpu=True)
+    dataset = Dataset(os.path.join(args[1]), use_cpu=True)
     model = CP(dataset.get_shape(), 50)
     model.load_state_dict(
-        torch.load("/home/tchechem/workspace/kbc/kbc/models/CKG-181019-EXT.pickle.30", map_location=torch.device('cpu')))
+        torch.load(args[2],
+                   map_location=torch.device('cpu')))
 
     graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
 
@@ -56,8 +57,8 @@ if __name__ == "__main__":
                           use_scalar_mix=False)
     ]
     document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
-                                                                  fine_tune_mode="nonlinear",
-                                                                  pooling="max")
+                                                                  fine_tune_mode="linear",
+                                                                  pooling="mean")
     flair_vectorizer_baseline_roberta = FlairTransformer(document_embeddings_baseline_roberta)
 
     union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
