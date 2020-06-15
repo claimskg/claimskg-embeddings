@@ -9,7 +9,6 @@ from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings
 from kbc.datasets import Dataset
 from kbc.models import CP
 from sklearn.linear_model import RidgeClassifier
-from sklearn.metrics import f1_score
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
 
@@ -64,10 +63,13 @@ if __name__ == "__main__":
     union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
 
     eval_settings = [
-        # EvaluationSetting("roberta_baseline_ridge",
-        #                   MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-        #                   vectorizer=flair_vectorizer_baseline_roberta),
-        EvaluationSetting("cp_ckg_ridge",
+        EvaluationSetting("ToC-CP_CKGE-WK",
+                          MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
+                          vectorizer=graph_vectorizer),
+        EvaluationSetting("ToC-DistilRoberta",
+                          MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
+                          vectorizer=flair_vectorizer_baseline_roberta),
+        EvaluationSetting("ToC-DistilRoberta-CP_CKGE-WK",
                           MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
                           vectorizer=union_vectorizer),
     ]
@@ -79,7 +81,9 @@ if __name__ == "__main__":
     }
 
     grid_search_params = {
-        "roberta_baseline_ridge": parametres_grid_ridge
+        # "ToC-CP_CKGE": parametres_grid_ridge,
+        # "ToC-DistilRoberta": parametres_grid_ridge,
+        # "ToC-DistilRoberta-CP_CKG": parametres_grid_ridge
     }
 
     claim_classifier.evaluate(input_x, input_y, eval_settings, n_folds=num_splits, seed=seed,

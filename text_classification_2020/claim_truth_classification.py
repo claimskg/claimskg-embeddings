@@ -3,16 +3,16 @@ import os
 import sys
 from logging import getLogger
 
-import pandas
 import torch
 from SPARQLWrapper import SPARQLWrapper
 from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings
 from kbc.datasets import Dataset
 from kbc.models import CP
+from pandas import DataFrame
 from sklearn.linear_model import RidgeClassifier
-from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
 
+from ckge.utils import get_all_claims
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
 from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer
 
@@ -30,17 +30,30 @@ if __name__ == "__main__":
     num_splits = 10
     seed = 45345
     classes = ["TRUE", "FALSE", "MIXTURE"]
-    claim_classifier = ClaimClassifier(class_list=classes)
+    claim_classifier = ClaimClassifier(class_list=classes, scoring=['accuracy', 'precision_micro',
+                                                                    'recall_micro', 'precision_macro',
+                                                                    'recall_macro', 'f1_micro', 'f1_macro'])
 
-    sparql_kg = SPARQLWrapper("http://localhost:8890/sparql")
+    sparql_kg = SPARQLWrapper(args[0])
 
+    all_claims = get_all_claims(sparql_kg, classes)
+    claims = []
+    texts = []
+    ratings = []
+
+    for claim in all_claims:
+        values = all_claims[claim]
+        claims.append(claim)
+        texts.append(values[0])
+        ratings.append(values[1])
+
+    input_x = DataFrame()
+    input_x['claim'] = claims
+    input_x['text'] = texts
 
     # input_x_text = dataset[['text', 'headline']].apply(lambda x: ''.join(x), axis=1).to_list()
-    input_x_text = dataset['text'].to_list()
-    input_x_graph = dataset['claim'].to_list()
-    input_x = dataset[['claim', 'text']]
 
-    input_y = dataset[class_list].copy().values
+    input_y = ratings
 
     # Graph embeddings
     dataset = Dataset(os.path.join(args[1]), use_cpu=True)
@@ -67,8 +80,14 @@ if __name__ == "__main__":
         # EvaluationSetting("roberta_baseline_ridge",
         #                   MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
         #                   vectorizer=flair_vectorizer_baseline_roberta),
-        EvaluationSetting("cp_ckg_ridge",
-                          MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
+        EvaluationSetting("TrC-CP_CKGE",
+                          RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
+                          vectorizer=graph_vectorizer),
+        # EvaluationSetting("TrC-DistilRoberta",
+        #                   RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
+        #                   vectorizer=flair_vectorizer_baseline_roberta),
+        EvaluationSetting("TrC-DistilRoberta-CP_CKG",
+                          RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
                           vectorizer=union_vectorizer),
     ]
 

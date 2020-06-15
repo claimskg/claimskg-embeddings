@@ -61,7 +61,8 @@ class ClaimClassifier:
         This class represents a classification system for the ESII problem
     """
 
-    def __init__(self, class_list):
+    def __init__(self, class_list,
+                 scoring=None):
         """
         Parameters
         ----------
@@ -74,9 +75,12 @@ class ClaimClassifier:
         #                 ('R', 'recall_samples'), ('Pm', 'precision_micro'),
         #                 ('Rm', 'recall_micro'), ('PM', 'precision_macro'),
         #                 ('RM', 'recall_macro'), ('f1m', 'f1_micro'), ('f1M', 'f1_macro')]
-        self.scoring = ['accuracy', 'f1_samples', 'precision_samples', 'recall_samples', 'precision_micro',
-                        'recall_micro', 'precision_macro',
-                        'recall_macro', 'f1_micro', 'f1_macro']
+        if scoring is None:
+            scoring = ['accuracy', 'f1_samples', 'precision_samples', 'recall_samples',
+                       'precision_micro',
+                       'recall_micro', 'precision_macro',
+                       'recall_macro', 'f1_micro', 'f1_macro']
+        self.scoring = scoring
         self._index_classes(class_list)
         self.vectorizer = None
         self.classifier = None
@@ -174,7 +178,6 @@ class ClaimClassifier:
 
     def evaluate(self, input_x, input_y, evaluation_settings: List[EvaluationSetting], n_folds=10,
                  seed=100, grid_search_params=None, save_model=False, model_directory="model.pkl", n_jobs=-1):
-
         """
                 This method takes the dataset as input and a list of EvaluationSettings and performs k-fold cross validation
                 on each evaluation setting, after which the pipeline for the best setting is set as the classifier for this
@@ -282,6 +285,8 @@ class ClaimClassifier:
                 setting.mean_scores[key] = scores_vector.mean()
                 setting.std_scores[key] = scores_vector.std()
 
+            logger.info(setting)
+
             accuracy_key = "test_accuracy"
             mean_acc = setting.mean_scores[accuracy_key]
             std_acc = setting.std_scores[accuracy_key]
@@ -289,15 +294,14 @@ class ClaimClassifier:
                 best_score = mean_acc - std_acc
                 best_setting = setting
                 best_estimator_index = current_estimator_index
-                logger.info(setting)
-
                 current_estimator_index += 1
 
-                logger.info("Best estimator overall: " + str(best_setting.classifier) + " with score:" + str(
-                    evaluation_settings[best_estimator_index].mean_scores))
-                if save_model:
-                    self._build_vector_model(input_x, vectorizer=best_setting.vectorizer)
-                    self.train(best_setting.classifier, input_x, y, model_directory=model_directory, )
+        if best_setting is not None:
+            logger.info("Best estimator overall: " + str(best_setting.classifier) + " with score:" + str(
+                evaluation_settings[best_estimator_index].mean_scores))
+            if save_model:
+                self._build_vector_model(input_x, vectorizer=best_setting.vectorizer)
+                self.train(best_setting.classifier, input_x, y, model_directory=model_directory, )
 
     def classify(self, input_x: List[str]):
         """
