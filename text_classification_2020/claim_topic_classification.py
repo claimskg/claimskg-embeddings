@@ -13,7 +13,7 @@ from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
 
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
-from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer
+from text_classification_2020.embeddings import ClamsKGGraphEmbeddingTransformer, FlairTransformer
 
 logger = getLogger()
 logger.setLevel(logging.DEBUG)
@@ -26,13 +26,15 @@ logger.addHandler(handler)
 if __name__ == "__main__":
     args = sys.argv[1:]
 
+    sparql_endpoint = args[0]
+
     num_splits = 10
     seed = 45345
     class_list = ["education", "healthcare", "immigration", "environment", "taxes", "elections", "crime"]
     claim_classifier = ClaimClassifier(
         class_list=class_list)
 
-    dataset = pandas.read_csv(args[0], sep=",")
+    dataset = pandas.read_csv(args[1], sep=",")
 
     # input_x_text = dataset[['text', 'headline']].apply(lambda x: ''.join(x), axis=1).to_list()
     input_x_text = dataset['text'].to_list()
@@ -42,15 +44,15 @@ if __name__ == "__main__":
     input_y = dataset[class_list].copy().values
 
     # Graph embeddings
-    dataset = Dataset(os.path.join(args[1]), use_cpu=True)
+    dataset = Dataset(os.path.join(args[2]), use_cpu=True)
     model = CP(dataset.get_shape(), 50)
     model.load_state_dict(
-        torch.load(args[2],
+        torch.load(args[3],
                    map_location=torch.device('cpu')))
 
-    graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
+    graph_vectorizer = ClamsKGGraphEmbeddingTransformer(dataset, model, sparql_endpoint)
 
-    # Baseline RoBERTa/BERT
+    # # Baseline RoBERTa/BERT
     embeddings_baseline_roberta = [
         RoBERTaEmbeddings(pretrained_model_name_or_path="distilroberta-base",
                           use_scalar_mix=False)

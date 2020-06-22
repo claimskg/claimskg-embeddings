@@ -5,7 +5,7 @@ from logging import getLogger
 
 import torch
 from SPARQLWrapper import SPARQLWrapper
-from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings
+from flair.embeddings import DocumentPoolEmbeddings, XLMEmbeddings
 from kbc.datasets import Dataset
 from kbc.models import CP
 from pandas import DataFrame
@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     num_splits = 10
     seed = 45345
-    classes = ["TRUE", "FALSE", "MIXTURE"]
+    classes = ["TRUE", "FALSE"]
     claim_classifier = ClaimClassifier(class_list=classes, scoring=['accuracy', 'precision_micro',
                                                                     'recall_micro', 'precision_macro',
                                                                     'recall_macro', 'f1_micro', 'f1_macro'])
@@ -66,8 +66,9 @@ if __name__ == "__main__":
 
     # Baseline RoBERTa/BERT
     embeddings_baseline_roberta = [
-        RoBERTaEmbeddings(pretrained_model_name_or_path="distilroberta-base",
-                          use_scalar_mix=False)
+        # RoBERTaEmbeddings(pretrained_model_name_or_path="distilroberta-base",
+        #                   use_scalar_mix=False)
+        XLMEmbeddings()
     ]
     document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
                                                                   fine_tune_mode="linear",
@@ -77,18 +78,18 @@ if __name__ == "__main__":
     union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
 
     eval_settings = [
-        # EvaluationSetting("roberta_baseline_ridge",
-        #                   MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-        #                   vectorizer=flair_vectorizer_baseline_roberta),
-        EvaluationSetting("TrC-CP_CKGE",
+        EvaluationSetting("roberta_baseline_ridge",
                           RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
-                          vectorizer=graph_vectorizer),
+                          vectorizer=flair_vectorizer_baseline_roberta),
+        # EvaluationSetting("TrC-CP_CKGE",
+        #                   RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
+        #                   vectorizer=graph_vectorizer),
         # EvaluationSetting("TrC-DistilRoberta",
         #                   RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
         #                   vectorizer=flair_vectorizer_baseline_roberta),
-        EvaluationSetting("TrC-DistilRoberta-CP_CKG",
-                          RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
-                          vectorizer=union_vectorizer),
+        # EvaluationSetting("TrC-DistilRoberta-CP_CKG",
+        #                   RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
+        #                   vectorizer=union_vectorizer),
     ]
 
     parametres_grid_ridge = {
