@@ -167,7 +167,7 @@ class GraphEmbeddingTransformer(BaseEstimator, TransformerMixin):
         :return: X: the transformed data - Dataframe
         """
 
-        X = X['claim']
+        X = X['claim and text']
 
         embeddings = []
         for element in tqdm(X.tolist()):
@@ -325,6 +325,72 @@ class ClamsKGGraphEmbeddingTransformer(GraphEmbeddingTransformer):
 
         embedding_dataset = numpy.vstack(padded_embeddings)
         return embedding_dataset
+
+    def fit_transform(self, X, y=None, **kwargs):
+        """
+        perform fit and transform over the data
+        :param X: features - Dataframe
+        :param y: target vector - Series
+        :param kwargs: free parameters - dictionary
+        :return: X: the transformed data - Dataframe
+        """
+        return self.transform(X, y)
+    
+class meanGraphFlairTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, embedder: DocumentEmbeddings,dataset: Dataset, model: KBCModel):
+        super(meanGraphFlairTransformer, self).__init__()
+        self.graphEmbedder = KnowledgeGraphEmbeddingExtractor(dataset, model)
+        self.textEmbedder = embedder
+
+    def fit(self, X, y=None, **kwargs):
+        """
+        an abstract method that is used to fit the step and to learn by examples
+        :param X: features - Dataframe
+        :param y: target vector - Series
+        :param kwargs: free parameters - dictionary
+        :return: self: the class object - an instance of the transformer - Transformer
+        """
+        # No fitting needed, using pre-trained embeddings_baseline
+        return self
+
+    def transform(self, X, y=None, **kwargs):
+        """
+        an abstract method that is used to transform according to what happend in the fit method
+        :param X: features - Dataframe
+        :param y: target vector - Series
+        :param kwargs: free parameters - dictionary
+        :return: X: the transformed data - Dataframe
+        """
+
+        X = X['claim']
+        graph_embeddings = []
+        text_embeddings = []
+
+        #for some reason I had a KeyError with the left_hand_side_entity_embedding when swaping the element_g and element_t loops
+        for element_g in tqdm(X.tolist()):
+            claim_embedding = self.graphEmbedder.left_hand_side_entity_embedding(element_g).numpy()
+            rel_embedding = self.graphEmbedder.relation_embedding("http://purl.org/dc/terms/about").numpy()
+            final_embedding = claim_embedding * rel_embedding
+            graph_embeddings.append(final_embedding)
+
+        for element_t in tqdm(X):
+            sentence = Sentence(element_t)
+            self.textEmbedder.embed(sentence)
+            vector = sentence.get_embedding().cpu().detach().numpy()
+            text_embeddings.append(vector)
+
+
+        #print(len(text_embeddings))#len=500 for both
+        #print(len(graph_embeddings))
+
+            #embeddings.append(numpy.mean(numpy.array([vector,final_embedding])))
+        embeddings=[]
+        for i in range(len(text_embeddings)):
+            embeddings.append(numpy.mean(numpy.hstack([text_embeddings[i],graph_embeddings[i]])))
+        
+        embedding_dataset = numpy.vstack(embeddings)
+        return embedding_dataset
+
 
     def fit_transform(self, X, y=None, **kwargs):
         """
