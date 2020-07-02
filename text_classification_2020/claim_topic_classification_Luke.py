@@ -14,7 +14,7 @@ from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
 
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
-from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer, meanGraphFlairTransformer
+from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer, GraphFlairTransformer
 
 logger = getLogger()
 logger.setLevel(logging.DEBUG)
@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
     #Mean of the graph and BERT embeddings
 
-    mean_vectorizer=meanGraphFlairTransformer(document_embeddings_baseline_roberta,dataset, model)
+    mean_vectorizer=GraphFlairTransformer(document_embeddings_baseline_roberta,dataset, model)
 
     eval_settings = [
         # EvaluationSetting("roberta_baseline_ridge",
