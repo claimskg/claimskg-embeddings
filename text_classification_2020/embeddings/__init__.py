@@ -386,9 +386,25 @@ class GraphFlairTransformer(BaseEstimator, TransformerMixin):
             #embeddings.append(numpy.mean(numpy.array([vector,final_embedding])))
         embeddings=[]
         for i in range(len(text_embeddings)):
-             embeddings.append(numpy.tensordot(text_embeddings[i],graph_embeddings[i],axes=0))
-        
+            tensorprod=numpy.tensordot(text_embeddings[i],graph_embeddings[i],axes=0)
+            embeddings.append(tensorprod.reshape(-1))
+            
+        max_len = 0
+        for vector in embeddings:
+            vlen = vector.size
+            if vlen > max_len:
+                max_len = vlen
+
+        padded_embeddings = []
+        for vector in embeddings:
+            vlen = vector.size
+            pad_len = max_len - vlen
+            if pad_len > 0:
+                padded_embeddings.append(numpy.pad(vector, [(0, pad_len)], mode="constant", constant_values=0))
+            else:
+                padded_embeddings.append(vector)   
         embedding_dataset = numpy.vstack(embeddings)
+        
         return embedding_dataset
 
 
