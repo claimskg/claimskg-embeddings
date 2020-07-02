@@ -336,7 +336,7 @@ class ClamsKGGraphEmbeddingTransformer(GraphEmbeddingTransformer):
         """
         return self.transform(X, y)
     
-class meanGraphFlairTransformer(BaseEstimator, TransformerMixin):
+class GraphFlairTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, embedder: DocumentEmbeddings,dataset: Dataset, model: KBCModel):
         super(meanGraphFlairTransformer, self).__init__()
         self.graphEmbedder = KnowledgeGraphEmbeddingExtractor(dataset, model)
@@ -386,7 +386,7 @@ class meanGraphFlairTransformer(BaseEstimator, TransformerMixin):
             #embeddings.append(numpy.mean(numpy.array([vector,final_embedding])))
         embeddings=[]
         for i in range(len(text_embeddings)):
-            embeddings.append(numpy.mean(numpy.hstack([text_embeddings[i],graph_embeddings[i]])))
+             embeddings.append(numpy.tensordot(text_embeddings[i],graph_embeddings[i],axes=0))
         
         embedding_dataset = numpy.vstack(embeddings)
         return embedding_dataset
