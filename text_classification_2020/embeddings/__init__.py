@@ -338,7 +338,7 @@ class ClamsKGGraphEmbeddingTransformer(GraphEmbeddingTransformer):
     
 class GraphFlairTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, embedder: DocumentEmbeddings,dataset: Dataset, model: KBCModel):
-        super(meanGraphFlairTransformer, self).__init__()
+        super(GraphFlairTransformer, self).__init__()
         self.graphEmbedder = KnowledgeGraphEmbeddingExtractor(dataset, model)
         self.textEmbedder = embedder
 
