@@ -408,11 +408,11 @@ class GraphFlairTransformer(BaseEstimator, TransformerMixin):
         
         for i in range(len(text_embeddings)):
         #embeddings=numpy.tensordot(graph_embeddings,text_embeddings,axes=1)
-            mean_GraphText=numpy.mean(numpy.array([text_embeddings,padded_graph_embeddings]),axis=0).reshape(-1)
+            mean_GraphText=numpy.mean(numpy.array([text_embeddings[i],padded_graph_embeddings[i]),axis=0).reshape(-1)
             embeddings.append(mean_GraphText)
         
         embedding_dataset = numpy.vstack(embeddings)
-        return embeddings_dataset
+        return embedding_dataset
 
     def fit_transform(self, X, y=None, **kwargs):
         """
