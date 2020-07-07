@@ -380,32 +380,49 @@ class GraphFlairTransformer(BaseEstimator, TransformerMixin):
             text_embeddings.append(vector)
 
 
-        #print(len(text_embeddings))#len=500 for both
-        #print(len(graph_embeddings))
+        text_embeddings=numpy.array(text_embeddings)
+        graph_embeddings=numpy.array(graph_embeddings)
 
-            #embeddings.append(numpy.mean(numpy.array([vector,final_embedding])))
-        embeddings=[]
-        for i in range(len(text_embeddings)):
-            tensorprod=numpy.tensordot(text_embeddings[i],graph_embeddings[i],axes=0)
-            embeddings.append(tensorprod.reshape(-1))
-            
-        max_len = 0
-        for vector in embeddings:
+        # for i in range(len(text_embeddings)):
+        #     tensorprod=numpy.tensordot(text_embeddings[i],graph_embeddings[i],axes=0)
+        #     embeddings.append(tensorprod.reshape(-1))
+
+        max_len = 768
+        for vector in graph_embeddings:
             vlen = vector.size
             if vlen > max_len:
                 max_len = vlen
 
-        padded_embeddings = []
-        for vector in embeddings:
+        padded_graph_embeddings = []
+        for vector in graph_embeddings:
             vlen = vector.size
             pad_len = max_len - vlen
             if pad_len > 0:
-                padded_embeddings.append(numpy.pad(vector, [(0, pad_len)], mode="constant", constant_values=0))
+                padded_graph_embeddings.append(numpy.pad(vector, [(0, pad_len)], mode="constant", constant_values=0))
             else:
-                padded_embeddings.append(vector)   
-        embedding_dataset = numpy.vstack(embeddings)
+                padded_graph_embeddings.append(vector)
+
+        padded_graph_embeddings=numpy.array(padded_graph_embeddings)
+    
+        embeddings=[]
         
-        return embedding_dataset
+        for i in range(len(text_embeddings)):
+        #embeddings=numpy.tensordot(graph_embeddings,text_embeddings,axes=1)
+            mean_GraphText=numpy.mean(numpy.array([text_embeddings,padded_graph_embeddings]),axis=0).reshape(-1)
+            embeddings.append(mean_GraphText)
+        
+        embedding_dataset = numpy.vstack(embeddings)
+        return embeddings_dataset
+
+    def fit_transform(self, X, y=None, **kwargs):
+        """
+        perform fit and transform over the data
+        :param X: features - Dataframe
+        :param y: target vector - Series
+        :param kwargs: free parameters - dictionary
+        :return: X: the transformed data - Dataframe
+        """
+        return self.transform(X, y)
 
 
     def fit_transform(self, X, y=None, **kwargs):
