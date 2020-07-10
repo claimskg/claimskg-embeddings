@@ -5,7 +5,7 @@ import flair
 import numpy
 from SPARQLWrapper import SPARQLWrapper, JSON
 from flair.data import Sentence, Token
-from flair.embeddings import TokenEmbeddings, _get_transformer_sentence_embeddings, DocumentEmbeddings
+from flair.embeddings import TokenEmbeddings, TransformerDocumentEmbeddings, DocumentEmbeddings
 from kbc.datasets import Dataset
 from kbc.embeddings import KnowledgeGraphEmbeddingExtractor
 from kbc.models import KBCModel
@@ -91,12 +91,12 @@ class FlairTransformer(BaseEstimator, TransformerMixin):
     a general class for creating a machine learning step in the machine learning pipeline
     """
 
-    def __init__(self, embedder: DocumentEmbeddings):
+    def __init__(self, embedder):
         """
         constructor
         """
         super(FlairTransformer, self).__init__()
-        self.embedder = embedder
+        self.embedder = TransformerDocumentEmbeddings(embedder,fine_tune=True)
 
     def fit(self, X, y=None, **kwargs):
         """
