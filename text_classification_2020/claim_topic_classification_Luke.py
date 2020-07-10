@@ -53,15 +53,14 @@ if __name__ == "__main__":
     graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
 
     # Baseline RoBERTa/BERT
-    #  embeddings_baseline_roberta = [
-    #      RoBERTaEmbeddings(pretrained_model_name_or_path="distilroberta-base",
-    #                        use_scalar_mix=False)
-    #  ]
-    # document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
-    #                                                               fine_tune_mode="linear",
-    #                                                               pooling="mean")
-    #flair_vectorizer_baseline_roberta = FlairTransformer(document_embeddings_baseline_roberta)
-    flair_vectorizer_baseline_roberta = FlairTransformer('roberta-base')
+    embeddings_baseline_roberta = [
+        TransformerWordEmbeddings("roberta-base")
+     ]
+    document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
+                                                                  fine_tune_mode="linear",
+                                                                  pooling="mean")
+                                                                  
+    flair_vectorizer_baseline_roberta = FlairTransformer(document_embeddings_baseline_roberta)
 
     union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
 
