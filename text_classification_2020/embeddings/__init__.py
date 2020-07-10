@@ -91,13 +91,12 @@ class FlairTransformer(BaseEstimator, TransformerMixin):
     a general class for creating a machine learning step in the machine learning pipeline
     """
 
-    def __init__(self, embedder):
+    def __init__(self, embedder: DocumentEmbeddings):
         """
         constructor
         """
         super(FlairTransformer, self).__init__()
-        self.embedder = TransformerDocumentEmbeddings(embedder,fine_tune=True)
-
+        self.embedder = embedder
     def fit(self, X, y=None, **kwargs):
         """
         an abstract method that is used to fit the step and to learn by examples
