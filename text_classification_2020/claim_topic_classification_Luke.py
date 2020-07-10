@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 from logging import getLogger
-
+import numpy
 import pandas
 import torch
 from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings
@@ -15,6 +15,7 @@ from sklearn.pipeline import FeatureUnion
 
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
 from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer, GraphFlairTransformer
+import csv
 
 logger = getLogger()
 logger.setLevel(logging.DEBUG)
@@ -49,23 +50,24 @@ if __name__ == "__main__":
         torch.load(args[2],
                    map_location=torch.device('cpu')))
 
-    #graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
+    graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
 
     # Baseline RoBERTa/BERT
-    embeddings_baseline_roberta = [
-        RoBERTaEmbeddings(pretrained_model_name_or_path="distilroberta-base",
-                          use_scalar_mix=False)
-    ]
-    document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
-                                                                  fine_tune_mode="linear",
-                                                                  pooling="mean")
+    #  embeddings_baseline_roberta = [
+    #      RoBERTaEmbeddings(pretrained_model_name_or_path="distilroberta-base",
+    #                        use_scalar_mix=False)
+    #  ]
+    # document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
+    #                                                               fine_tune_mode="linear",
+    #                                                               pooling="mean")
     #flair_vectorizer_baseline_roberta = FlairTransformer(document_embeddings_baseline_roberta)
+    flair_vectorizer_baseline_roberta = FlairTransformer('roberta-base')
 
-    #union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
+    union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
 
     #Mean of the graph and BERT embeddings
 
-    mean_vectorizer=GraphFlairTransformer(document_embeddings_baseline_roberta,dataset, model)
+    #mean_vectorizer=GraphFlairTransformer(document_embeddings_baseline_roberta,dataset, model)
 
     eval_settings = [
         # EvaluationSetting("roberta_baseline_ridge",
@@ -76,7 +78,7 @@ if __name__ == "__main__":
         #                   vectorizer=union_vectorizer),
         EvaluationSetting("cp_ckg_ridge",
                            MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-                           vectorizer=mean_vectorizer),
+                           vectorizer=union_vectorizer),
     ]
 
     parametres_grid_ridge = {
