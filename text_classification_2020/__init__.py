@@ -4,11 +4,11 @@ import pickle
 from copy import deepcopy
 from logging import getLogger
 from typing import List
-
+from sklearn.linear_model import RidgeClassifier
 import numpy
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_validate, KFold
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_validate, KFold,cross_val_predict
 from sklearn.pipeline import make_pipeline, Pipeline
 from tqdm import tqdm
 
@@ -61,8 +61,7 @@ class ClaimClassifier:
         This class represents a classification system for the ESII problem
     """
 
-    def __init__(self, class_list,
-                 scoring=None):
+    def __init__(self, class_list):
         """
         Parameters
         ----------
@@ -75,12 +74,9 @@ class ClaimClassifier:
         #                 ('R', 'recall_samples'), ('Pm', 'precision_micro'),
         #                 ('Rm', 'recall_micro'), ('PM', 'precision_macro'),
         #                 ('RM', 'recall_macro'), ('f1m', 'f1_micro'), ('f1M', 'f1_macro')]
-        if scoring is None:
-            scoring = ['accuracy', 'f1_samples', 'precision_samples', 'recall_samples',
-                       'precision_micro',
-                       'recall_micro', 'precision_macro',
-                       'recall_macro', 'f1_micro', 'f1_macro']
-        self.scoring = scoring
+        self.scoring = ['accuracy', 'f1_samples', 'precision_samples', 'recall_samples', 'precision_micro',
+                        'recall_micro', 'precision_macro',
+                        'recall_macro', 'f1_micro', 'f1_macro']
         self._index_classes(class_list)
         self.vectorizer = None
         self.classifier = None
@@ -235,6 +231,29 @@ class ClaimClassifier:
         best_score = 0
         current_estimator_index = 0
 
+        # setting=evaluation_settings[0]
+        # classifier =setting.classifier
+        # best_params={'estimator__alpha': 0.5, 
+        #     'estimator__class_weight': None, 
+        #     'estimator__copy_X': True, 
+        #     'estimator__fit_intercept': True, 
+        #     'estimator__max_iter': None, 
+        #     'estimator__normalize': True, 
+        #     'estimator__random_state': None, 
+        #     'estimator__solver': 'auto', 
+        #     'estimator__tol': 0.001, 
+        #     'estimator': RidgeClassifier(alpha=0.5, normalize=True), 
+        #     'n_jobs': None}
+
+
+        # classifier.set_params(**best_params)
+        # classifier_clone = deepcopy(classifier)
+
+        # X_data = deepcopy(setting.vectorizer).fit_transform(input_x)
+        # if not isinstance(X_data, numpy.ndarray):
+        #     X_data = X_data.toarray()
+
+        # scores=cross_validate(classifier_clone, X_data, input_y, cv=stratif, return_estimator=True,scoring=self.scoring)
         for setting in tqdm(evaluation_settings):
 
             input_x_remaining, input_x_gscv, y_remaining, y_gscv = train_test_split(input_x, y, random_state=seed,
@@ -274,27 +293,29 @@ class ClaimClassifier:
 
                 scores = cross_validate(classifier_clone, X_remaining, y_remaining, cv=stratif, return_estimator=True,
                                         scoring=self.scoring)
+                                                   
+        setting.scores = {}
+        setting.mean_scores = {}
+        setting.std_scores = {}
+        for scoring in self.scoring:
+            key = "test_" + scoring
+            scores_vector = scores[key]
+            setting.scores[key] = scores_vector
+            setting.mean_scores[key] = scores_vector.mean()
+            setting.std_scores[key] = scores_vector.std()
 
-            setting.scores = {}
-            setting.mean_scores = {}
-            setting.std_scores = {}
-            for scoring in self.scoring:
-                key = "test_" + scoring
-                scores_vector = scores[key]
-                setting.scores[key] = scores_vector
-                setting.mean_scores[key] = scores_vector.mean()
-                setting.std_scores[key] = scores_vector.std()
 
-            logger.info(setting)
+        logger.info(setting)
 
-            accuracy_key = "test_accuracy"
-            mean_acc = setting.mean_scores[accuracy_key]
-            std_acc = setting.std_scores[accuracy_key]
-            if mean_acc - std_acc > best_score:
-                best_score = mean_acc - std_acc
-                best_setting = setting
-                best_estimator_index = current_estimator_index
-                current_estimator_index += 1
+        accuracy_key = "test_accuracy"
+        mean_acc = setting.mean_scores[accuracy_key]
+        std_acc = setting.std_scores[accuracy_key]
+
+        if mean_acc - std_acc > best_score:
+            best_score = mean_acc - std_acc
+            best_setting = setting
+            best_estimator_index = current_estimator_index
+            current_estimator_index += 1
 
         if best_setting is not None:
             logger.info("Best estimator overall: " + str(best_setting.classifier) + " with score:" + str(
@@ -323,3 +344,80 @@ class ClaimClassifier:
             return [self.reverse_class_index[prediction] for prediction in predictions]
 
         return None
+
+
+    def get_predictions(self, input_x, input_y, evaluation_settings: List[EvaluationSetting], n_folds=10,
+                 seed=100, grid_search_params=None, save_model=False, model_directory="model.pkl", n_jobs=-1):
+    
+        """             
+                The purpose of this method is to get the predictions in order to analyse the errors of the model.
+                This method takes the dataset as input and a list of EvaluationSettings and performs k-fold cross validation
+                on each evaluation setting, after which the pipeline for the best setting is set as the classifier for this
+                instance of ClaimClassifier. The main difference with the evaluate method is that it returns an array containing the predictions instead of the scores.
+        """
+        stratif = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
+
+        # Replace dataset labels by their corresponding indices
+        # y = input_y
+
+        # Keep a dictionary of unique vectorizers where the vectorized dataset is stored for each different instance of
+        # the vectorizer. This way if several settings share the same vectorizer, the computation won't be duplicated
+        # vectorizer_instance_dict = {}
+
+        # best_setting = None
+        # best_estimator_index = 0
+        # best_score = 0
+        # current_estimator_index = 0
+
+        # for setting in tqdm(evaluation_settings):
+
+            # input_x_remaining, input_x_gscv, y_remaining, y_gscv = train_test_split(input_x, y, random_state=seed,
+            #                                                                         shuffle=True,
+            #                                                                         train_size=0.8)
+
+        # use_pipeline = isinstance(setting.classifier, Pipeline)
+
+        setting=evaluation_settings[0]
+        classifier =setting.classifier
+        best_params={'estimator__alpha': 0.5, 
+            'estimator__class_weight': None, 
+            'estimator__copy_X': True, 
+            'estimator__fit_intercept': True, 
+            'estimator__max_iter': None, 
+            'estimator__normalize': True, 
+            'estimator__random_state': None, 
+            'estimator__solver': 'auto', 
+            'estimator__tol': 0.001, 
+            'estimator': RidgeClassifier(alpha=0.5, normalize=True), 
+            'n_jobs': None}
+
+
+        classifier.set_params(**best_params)
+        classifier_clone = deepcopy(classifier)
+
+        X_data = deepcopy(setting.vectorizer).fit_transform(input_x)
+        if not isinstance(X_data, numpy.ndarray):
+            X_data = X_data.toarray()
+
+        predictions=cross_val_predict(classifier_clone, X_data, input_y, cv=stratif)
+
+
+        print("////////")
+        print(predictions.shape)
+        return(predictions)
+
+    def get_errors(self,predictions,input_y,which_label,labels):#predictions,input_y : ndarray; which_index : string; labels : list
+
+        """
+        this method returns the indexes of all mislabeled claims for a given topic
+        """
+        mislabeled=[]
+        label_index=labels.index(which_label)
+
+        for claim in range(len(predictions)):
+            if (predictions[claim,label_index]!=input_y[claim,label_index]):
+                mislabeled.append(claim)
+        
+        print(mislabeled)
+        return mislabeled
+
