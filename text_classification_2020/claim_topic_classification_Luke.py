@@ -5,14 +5,15 @@ from logging import getLogger
 import numpy
 import pandas
 import torch
-from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings
+from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings, TransformerWordEmbeddings
 from kbc.datasets import Dataset
 from kbc.models import CP
 from sklearn.linear_model import RidgeClassifier
+from sklearn.svm import SVC
 from sklearn.metrics import f1_score
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
-
+from flair.embeddings import TransformerDocumentEmbeddings
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
 from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer, GraphFlairTransformer
 import csv
