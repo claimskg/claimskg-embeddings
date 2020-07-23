@@ -69,15 +69,13 @@ if __name__ == "__main__":
     #mean_vectorizer=GraphFlairTransformer(document_embeddings_baseline_roberta,dataset, model)
 
     eval_settings = [
-        # EvaluationSetting("roberta_baseline_ridge",
-        #                   MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-        #                   vectorizer=flair_vectorizer_baseline_roberta),
+
         # EvaluationSetting("cp_ckg_ridge",
-        #                   MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-        #                   vectorizer=union_vectorizer),
-        EvaluationSetting("cp_ckg_ridge",
-                           MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-                           vectorizer=union_vectorizer),
+        #                    MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
+        #                    #RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
+        #                    vectorizer=union_vectorizer),
+        EvaluationSetting("svm",
+                           MultiOutputClassifier(SVC()),vectorizer=union_vectorizer),
     ]
 
     parametres_grid_ridge = {
@@ -86,9 +84,31 @@ if __name__ == "__main__":
         "estimator__tol": [1e-5, 1e-3, 1e-1]
     }
 
+    param_grid={    'vect__min_df': numpy.linspace(0.005, 0.05, 5),
+        'tfidf__use_idf': (True, False),
+        'svm__C': numpy.logspace(-1, 2, 10),
+        'svm__kernel': ['linear','poly','rbf','sigmoid','precomputed'],
+        'svm__tol': [1e-5, 1e-3, 1e-1],
+        'svm__decision_function_shape': ['ovo','ovr'],
+        'svm__gamma': numpy.logspace(-1, 1, 10),}
+
     grid_search_params = {
-        "roberta_baseline_ridge": parametres_grid_ridge
+        "roberta_baseline_ridge": param_grid
     }
-    
+
     claim_classifier.evaluate(input_x, input_y, eval_settings, n_folds=num_splits, seed=seed,
                               n_jobs=5, grid_search_params=grid_search_params)
+
+    # predictions=claim_classifier.get_predictions(input_x, input_y, eval_settings, n_folds=num_splits, seed=seed,n_jobs=5, grid_search_params=grid_search_params)
+    # print("/////////////")
+    # print(predictions.shape)
+    # print(input_x.shape)
+    # print(input_y.shape)
+    # print("//////////////")
+
+    # errors_index=claim_classifier.get_errors(predictions,input_y,which_label="environment",labels=class_list)
+
+    # for mislabeled_claim in errors_index:
+    #     print("////////////////")
+    #     print(input_x_text[mislabeled_claim])
+    #     print(input_y[mislabeled_claim])
