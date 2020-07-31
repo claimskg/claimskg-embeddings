@@ -12,6 +12,8 @@ from sklearn.linear_model import RidgeClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import f1_score
 from sklearn.multioutput import MultiOutputClassifier
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import FeatureUnion
 from flair.embeddings import TransformerDocumentEmbeddings
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
@@ -37,10 +39,10 @@ if __name__ == "__main__":
 
     dataset = pandas.read_csv(args[0], sep=",")
 
-    # input_x_text = dataset[['text', 'headline']].apply(lambda x: ''.join(x), axis=1).to_list()
     input_x_text = dataset['text'].to_list()
     input_x_graph = dataset['claim'].to_list()
     input_x = dataset[['claim', 'text']]
+    #input_x['text'] = dataset[['text', 'headline']].apply(lambda x: ''.join(x), axis=1).to_list()
 
     input_y = dataset[class_list].copy().values
 
@@ -53,14 +55,14 @@ if __name__ == "__main__":
 
     graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
 
-    # Baseline RoBERTa/BERT
+    #Baseline RoBERTa/BERT
     embeddings_baseline_roberta = [
-        TransformerWordEmbeddings("roberta-base")
+        TransformerWordEmbeddings("roberta-base",layers="-1,-2,-3,-4",use_scalar_mix=True)
      ]
     document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
                                                                   fine_tune_mode="linear",
                                                                   pooling="mean")
-                                                                  
+
     flair_vectorizer_baseline_roberta = FlairTransformer(document_embeddings_baseline_roberta)
 
     union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
@@ -72,29 +74,39 @@ if __name__ == "__main__":
     eval_settings = [
 
         # EvaluationSetting("cp_ckg_ridge",
-        #                    MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-        #                    #RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
-        #                    vectorizer=union_vectorizer),
-        EvaluationSetting("svm",
-                           MultiOutputClassifier(SVC()),vectorizer=union_vectorizer),
+        #                  MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
+        #                  vectorizer= graph_vectorizer),
+         EvaluationSetting("svm",
+                           OneVsRestClassifier(estimator=SVC()),vectorizer=union_vectorizer),
+        # EvaluationSetting("random_forest",RandomForestClassifier(),vectorizer=union_vectorizer),
     ]
 
-    parametres_grid_ridge = {
+    parametres_grid_ridge={
         "estimator__alpha": [0.01, 0.1, 0.5, 1, 1.5, 3, 6],
         "estimator__normalize": [True, False],
         "estimator__tol": [1e-5, 1e-3, 1e-1]
     }
+    print("//////////////////::")
+    print(RandomForestClassifier().get_params().keys())
+    print("/////////////////:")
 
-    param_grid={    'vect__min_df': numpy.linspace(0.005, 0.05, 5),
-        'tfidf__use_idf': (True, False),
-        'svm__C': numpy.logspace(-1, 2, 10),
-        'svm__kernel': ['linear','poly','rbf','sigmoid','precomputed'],
-        'svm__tol': [1e-5, 1e-3, 1e-1],
-        'svm__decision_function_shape': ['ovo','ovr'],
-        'svm__gamma': numpy.logspace(-1, 1, 10),}
+    param_grid={ 'estimator__C': numpy.logspace(-1, 2, 10),
+        'estimator__kernel': ['poly','rbf','sigmoid'],
+        'estimator__tol': [1e-5, 1e-3, 1e-1],
+        'estimator__decision_function_shape': ['ovo','ovr'],
+        'estimator__gamma': numpy.logspace(-1, 1, 10),}
+    
+    param_rf={
+        'n_estimators': [100,200,300,400,500],
+        'criterion': ["gini","entropy"],
+        'max_features': ["auto","sqrt","log2"],
+        'max_depth' : [4,5,6,7,8],
+    }
 
     grid_search_params = {
-        "roberta_baseline_ridge": param_grid
+        # "svm": param_grid
+        #"roberta_baseline_ridge": parametres_grid_ridge
+        "random_forest": param_rf
     }
 
     claim_classifier.evaluate(input_x, input_y, eval_settings, n_folds=num_splits, seed=seed,
@@ -107,7 +119,7 @@ if __name__ == "__main__":
     # print(input_y.shape)
     # print("//////////////")
 
-    # errors_index=claim_classifier.get_errors(predictions,input_y,which_label="environment",labels=class_list)
+    # errors_index=claim_classifier.get_errors(predictions,input_y,which_label="education",labels=class_list)
 
     # for mislabeled_claim in errors_index:
     #     print("////////////////")
