@@ -76,9 +76,9 @@ if __name__ == "__main__":
         # EvaluationSetting("cp_ckg_ridge",
         #                  MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
         #                  vectorizer= graph_vectorizer),
-         EvaluationSetting("svm",
-                           OneVsRestClassifier(estimator=SVC()),vectorizer=union_vectorizer),
-        # EvaluationSetting("random_forest",RandomForestClassifier(),vectorizer=union_vectorizer),
+        # EvaluationSetting("svm",
+        #                  OneVsRestClassifier(estimator=SVC()),vectorizer=union_vectorizer),
+        EvaluationSetting("random_forest",RandomForestClassifier(),vectorizer=union_vectorizer),
     ]
 
     parametres_grid_ridge={
