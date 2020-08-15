@@ -13,7 +13,7 @@ from sklearn.svm import SVC
 
 from ckge.utils import get_all_claims
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
-from text_classification_2020.embeddings import FlairTransformer, \
+from embeddings import FlairTransformer, \
     ClamsKGGraphEmbeddingTransformer, NeighbourhoodVectorConcatStrategy
 
 logger = getLogger()

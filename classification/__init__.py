@@ -14,7 +14,6 @@ from tqdm import tqdm
 
 logger = getLogger()
 
-
 class EvaluationSetting:
     """
     This class allows to define a particular evaluation setting that combines a vectorizer (VectorMixin) and a

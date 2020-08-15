@@ -1,6 +1,6 @@
 from SPARQLWrapper import SPARQLWrapper
 
-from cls_task.sparql_offset_fetcher import SparQLOffsetFetcher
+from ckge.sparql_offset_fetcher import SparQLOffsetFetcher
 
 
 def get_all_claims(sparql_wrapper: SPARQLWrapper, labels):
