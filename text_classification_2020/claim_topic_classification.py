@@ -5,7 +5,7 @@ from logging import getLogger
 
 import pandas
 import torch
-from flair.embeddings import RoBERTaEmbeddings, DocumentPoolEmbeddings
+from flair.embeddings import TransformerWordEmbeddings
 from kbc.datasets import Dataset
 from kbc.models import CP
 from sklearn.linear_model import RidgeClassifier
@@ -13,7 +13,8 @@ from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import FeatureUnion
 
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
-from text_classification_2020.embeddings import ClamsKGGraphEmbeddingTransformer, FlairTransformer
+from text_classification_2020.embeddings import FlairTransformer, \
+    GraphEmbeddingTransformer, ClamsKGGraphEmbeddingTransformer, NeighbourhoodVectorConcatStrategy
 
 logger = getLogger()
 logger.setLevel(logging.DEBUG)
@@ -36,7 +37,13 @@ if __name__ == "__main__":
 
     dataset = pandas.read_csv(args[1], sep=",")
 
-    # input_x_text = dataset[['text', 'headline']].apply(lambda x: ''.join(x), axis=1).to_list()
+    # Concatenate all text
+    dataset['text'] = dataset[['text', 'headline', 'keywords', 'claim_date']].apply(lambda x: ''.join(x),
+                                                                                    axis=1).to_list()
+    # Concatenate juste claim and headline
+    # dataset['text'] = dataset[['text', 'headline']].apply(lambda x: ''.join(x), axis=1).to_list()
+
+    # dataset['text'] = dataset[['keywords']].apply(lambda x: ''.join(x), axis=1).to_list()
     input_x_text = dataset['text'].to_list()
     input_x_graph = dataset['claim'].to_list()
     input_x = dataset[['claim', 'text']]
@@ -49,28 +56,31 @@ if __name__ == "__main__":
     model.load_state_dict(
         torch.load(args[3],
                    map_location=torch.device('cpu')))
+    #
+    graph_vectorizer = ClamsKGGraphEmbeddingTransformer(dataset, model, sparql_endpoint,
+                                                        NeighbourhoodVectorConcatStrategy.CONCAT_ALL,
+                                                        bidirectional=False)
 
-    graph_vectorizer = ClamsKGGraphEmbeddingTransformer(dataset, model, sparql_endpoint)
+    # graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
 
     # # Baseline RoBERTa/BERT
-    embeddings_baseline_roberta = [
-        RoBERTaEmbeddings(pretrained_model_name_or_path="distilroberta-base",
-                          use_scalar_mix=False)
-    ]
-    document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
-                                                                  fine_tune_mode="linear",
-                                                                  pooling="mean")
-    flair_vectorizer_baseline_roberta = FlairTransformer(document_embeddings_baseline_roberta)
+    flair_vectorizer_baseline_roberta = FlairTransformer([
+        TransformerWordEmbeddings(model="distilroberta-base",
+                                  use_scalar_mix=True)
+    ], batch_size=1)
 
     union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
 
     eval_settings = [
-        EvaluationSetting("ToC-CP_CKGE-WK",
-                          MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-                          vectorizer=graph_vectorizer),
-        EvaluationSetting("ToC-DistilRoberta",
-                          MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
-                          vectorizer=flair_vectorizer_baseline_roberta),
+        # EvaluationSetting("ToC-CP_CKGE",
+        #                   MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
+        #                   vectorizer=graph_vectorizer),
+        # EvaluationSetting("ToC-CP_CKGE",
+        #                   MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
+        #                   vectorizer=graph_vectorizer),
+        # EvaluationSetting("ToC-DistilRoberta",
+        #                   MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
+        #                   vectorizer=flair_vectorizer_baseline_roberta),
         EvaluationSetting("ToC-DistilRoberta-CP_CKGE-WK",
                           MultiOutputClassifier(RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5)),
                           vectorizer=union_vectorizer),

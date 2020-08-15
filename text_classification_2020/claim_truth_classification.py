@@ -5,16 +5,16 @@ from logging import getLogger
 
 import torch
 from SPARQLWrapper import SPARQLWrapper
-from flair.embeddings import DocumentPoolEmbeddings, XLMEmbeddings
+from flair.embeddings import TransformerWordEmbeddings
 from kbc.datasets import Dataset
 from kbc.models import CP
 from pandas import DataFrame
-from sklearn.linear_model import RidgeClassifier
-from sklearn.pipeline import FeatureUnion
+from sklearn.svm import SVC
 
 from ckge.utils import get_all_claims
 from text_classification_2020 import ClaimClassifier, EvaluationSetting
-from text_classification_2020.embeddings import GraphEmbeddingTransformer, FlairTransformer
+from text_classification_2020.embeddings import FlairTransformer, \
+    ClamsKGGraphEmbeddingTransformer, NeighbourhoodVectorConcatStrategy
 
 logger = getLogger()
 logger.setLevel(logging.DEBUG)
@@ -39,6 +39,8 @@ if __name__ == "__main__":
     all_claims = get_all_claims(sparql_kg, classes)
     claims = []
     texts = []
+    keywords = []
+    authors = []
     ratings = []
 
     for claim in all_claims:
@@ -46,12 +48,17 @@ if __name__ == "__main__":
         claims.append(claim)
         texts.append(values[0])
         ratings.append(values[1])
+        keywords.append(values[2])
+        authors.append(values[3])
 
     input_x = DataFrame()
     input_x['claim'] = claims
     input_x['text'] = texts
+    input_x['keywords'] = keywords
+    input_x['author'] = authors
 
-    # input_x_text = dataset[['text', 'headline']].apply(lambda x: ''.join(x), axis=1).to_list()
+    input_x['text'] = input_x[['text', 'keywords', 'author']].apply(lambda x: ''.join(x), axis=1).to_list()
+    # input_x['text'] = input_x[['keywords']].apply(lambda x: ''.join(x), axis=1).to_list()
 
     input_y = ratings
 
@@ -62,31 +69,32 @@ if __name__ == "__main__":
         torch.load(args[2],
                    map_location=torch.device('cpu')))
 
-    graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
+    graph_vectorizer = ClamsKGGraphEmbeddingTransformer(dataset, model, args[0],
+                                                        NeighbourhoodVectorConcatStrategy.CONCAT_TRIPLES)
+    # graph_vectorizer = GraphEmbeddingTransformer(dataset, model)
 
     # Baseline RoBERTa/BERT
-    embeddings_baseline_roberta = [
-        # RoBERTaEmbeddings(pretrained_model_name_or_path="distilroberta-base",
-        #                   use_scalar_mix=False)
-        XLMEmbeddings()
-    ]
-    document_embeddings_baseline_roberta = DocumentPoolEmbeddings(embeddings_baseline_roberta,
-                                                                  fine_tune_mode="linear",
-                                                                  pooling="mean")
-    flair_vectorizer_baseline_roberta = FlairTransformer(document_embeddings_baseline_roberta)
+    flair_vectorizer_baseline_roberta = FlairTransformer(
+        [
+            TransformerWordEmbeddings(model="distilroberta-base", use_scalar_mix=True)
+        ]
+    )
 
-    union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
+    # union_vectorizer = FeatureUnion([('flair', flair_vectorizer_baseline_roberta), ('graph', graph_vectorizer)])
 
     eval_settings = [
-        EvaluationSetting("roberta_baseline_ridge",
-                          RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
-                          vectorizer=flair_vectorizer_baseline_roberta),
-        # EvaluationSetting("TrC-CP_CKGE",
-        #                   RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
-        #                   vectorizer=graph_vectorizer),
-        # EvaluationSetting("TrC-DistilRoberta",
+        # EvaluationSetting("roberta_baseline_ridge",
         #                   RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
         #                   vectorizer=flair_vectorizer_baseline_roberta),
+        # EvaluationSetting("TrC-CP_CKGE-GN_CA",
+        #                   RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
+        #                   vectorizer=graph_vectorizer),
+        # EvaluationSetting("TrC-CP_CKGE-GN_CA_SVM",
+        #                   SVC(C=1, gamma=0.1),
+        #                   vectorizer=graph_vectorizer),
+        EvaluationSetting("TrC-DistilRoberta",
+                          SVC(C=1, gamma=0.1),
+                          vectorizer=flair_vectorizer_baseline_roberta),
         # EvaluationSetting("TrC-DistilRoberta-CP_CKG",
         #                   RidgeClassifier(normalize=True, fit_intercept=True, alpha=0.5),
         #                   vectorizer=union_vectorizer),
